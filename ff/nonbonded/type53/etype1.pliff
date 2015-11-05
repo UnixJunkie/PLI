@@ -1,0 +1,5 @@
+Type1    7   19   53 "Pyridine N?"
+Type2    1   -1   -1 "H"
+P       1.000000     0.500000   1
+lnP     0.000000     0.500000   1
+Precision DUDU

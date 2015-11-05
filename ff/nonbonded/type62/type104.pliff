@@ -1,0 +1,5 @@
+Type1    7   22   62 "Amide >N-"
+Type2   15   45  104 "Quaternary P"
+P       0.500000     0.250000   1
+lnP    -0.693147     0.500000   1
+Precision STGT

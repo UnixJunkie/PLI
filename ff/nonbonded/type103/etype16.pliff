@@ -1,0 +1,5 @@
+Type1   16   44  103 "Quaternary S"
+Type2   16   -1   -1 "S"
+P       2.000000     1.000000   1
+lnP     0.693147     0.500000   1
+Precision STAN

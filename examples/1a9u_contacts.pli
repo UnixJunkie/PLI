@@ -1,0 +1,6 @@
+mode contacts
+protein 1a9u_protein.pdb
+ligand 1a9u_ligand.pdb
+selection ligand
+output contacts,scores
+#oformat json

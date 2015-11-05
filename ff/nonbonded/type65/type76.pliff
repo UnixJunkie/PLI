@@ -1,0 +1,5 @@
+Type1    7   25   65 "Amidine =NH2"
+Type2    7   32   76 "=N="
+P       1.000000     0.500000   1
+lnP     0.000000     0.500000   1
+Precision DUDU

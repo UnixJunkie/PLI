@@ -1,0 +1,10 @@
+mode field
+grid_file 1a9u_field.grd
+#grid_file 1a9u_field.grd.gz
+probe_name Aromatic CH
+#grid_spacing 0.2
+keep_waters none
+exact_voronoi_areas 0
+protein 1a9u_protein.pdb
+site_ligand_file 1a9u_ligand.pdb
+output none

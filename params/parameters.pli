@@ -1,0 +1,478 @@
+# PLI parameter definitions
+# format is strict
+
+-mode
+  type          : string
+  purpose       : defines the mode in which pli runs
+  valid values  : type,contacts,score,field
+  default value : undefined
+  exposed       : 1
+
+-sfunc
+  type          : string
+  purpose       : defines the scoring function used
+  valid values  : pliff
+  default value : pliff
+  exposed       : 1
+
+-protein
+  type          : string
+  purpose       : protein filename (must be pdb file)
+  valid values  : any valid file path
+  default value : undefined
+  exposed       : 1
+
+-ligand
+  type          : string
+  purpose       : ligand filename (can be pdb or sdf file)
+  valid values  : any valid file path
+  default value : undefined
+  exposed       : 1
+
+-symmetry
+  type          : string
+  purpose       : filename of the symmetry atoms (must be pdb file)
+  valid values  : any valid file path
+  default value : undefined
+  exposed       : 1
+
+-complexes
+  type          : string
+  purpose       : file containing a list of paired protein and ligand filenames
+  valid values  : any valid file path
+  default value : undefined
+  exposed       : 0
+
+-selection
+  type          : string
+  purpose       : atom selection used during calculations
+  valid values  : protein,ligand,site (depending on the mode)
+  default value : undefined
+  exposed       : 1
+
+-jobname
+  type          : string
+  purpose       : defines name of the job - affects generated file names
+  valid values  : any string
+  default value : pli
+  exposed       : 1
+
+-verbose
+  type          : integer
+  purpose       : turns verbose mode on/off (not sure it has much effect)
+  valid values  : 0,1
+  default value : 0
+  exposed       : 0
+
+-output
+  type          : string
+  purpose       : controls what is being output
+  valid values  : system,atoms,contacts,hbonds,clashes,scores,geometries,ligand,pdb,mol (can be comma-separated list)
+  default value : system
+  exposed       : 1
+
+-oformat
+  type          : string
+  purpose       : controls output format
+  valid values  : formatted,json
+  default value : formatted
+  exposed       : 1
+
+-astyle
+  type          : string
+  purpose       : controls style used for outputting atoms
+  valid values  : basic,type,pdb,pliff
+  default value : pliff
+  exposed       : 1
+
+-oatoms
+  type          : string
+  purpose       : controls which atoms are output
+  valid values  : selection,extended,ligand,water
+  default value : selection
+  exposed       : 1
+
+-warnings
+  type          : integer
+  purpose       : controls whether warnings are shown
+  valid values  : 0,1
+  default value : 1
+  exposed       : 1
+
+-report_alt_types
+  type          : integer
+  purpose       : controls whether ambiguous atom typing is output
+  valid values  : 0,1
+  default value : 0
+  exposed       : 0
+
+-pdict
+  type          : integer
+  purpose       : use pdb dictionaries for atom typing of protein atoms
+  valid values  : 0,1
+  default value : 1
+  exposed       : 1
+
+-ldict
+  type          : integer
+  purpose       : use pdb dictionaries for atom typing of ligand atoms
+  valid values  : 0,1
+  default value : 1
+  exposed       : 1
+
+-phs
+  type          : integer
+  purpose       : use hydrogens specified in protein file for atom typing
+  valid values  : 0,1
+  default value : 0
+  exposed       : 1
+
+-lhs
+  type          : integer
+  purpose       : use hydrogens specified in ligand file for atom typing
+  valid values  : 0,1
+  default value : 0
+  exposed       : 1
+
+-resolve_side_chains
+  type          : string
+  purpose       : atom selection for which side chains are resolved (flipped)
+  valid values  : selection,site,all,none
+  default value : selection
+  exposed       : 1
+
+-alt_type_assignment
+  type          : string
+  purpose       : protocol used to assign atom types for ambiguous atoms
+  valid values  : random,best
+  default value : random
+  exposed       : 0
+
+-resolve_metals
+  type          : integer
+  purpose       : controls if metals are checked and changed to waters when they look suspect
+  valid values  : 0,1
+  default value : 0
+  exposed       : 0
+
+-keep_waters
+  type          : string
+  purpose       : controls which water molecules are kept in the system
+  valid values  : all,none,tight
+  default value : all
+  exposed       : 1
+
+-voronoi_contacts
+  type          : integer
+  purpose       : not sure this does anything
+  valid values  : 0,1
+  default value : 1
+  exposed       : 0
+
+-exact_voronoi_areas
+  type          : integer
+  purpose       : turn this option off for approximate areas at significant speed-up
+  valid values  : 0,1
+  default value : 1
+  exposed       : 1
+
+-allow_bad_clashes
+  type          : integer
+  purpose       : if turned on, program exits on really bad clashes
+  valid values  : 0,1
+  default value : 0
+  exposed       : 0
+
+-allow_covalent_bonds
+  type          : integer
+  purpose       : if turned on, program exits on really covalent bonds between protein and ligand
+  valid values  : 0,1
+  default value : 0
+  exposed       : 0
+
+-hist_start_s
+  type          : double
+  purpose       : start sigma for smoothing histograms
+  valid values  : in theory any float - probably not a good idea to mess with this
+  default value : 1.0
+  exposed       : 0
+
+-hist_end_s
+  type          : double
+  purpose       : maximum sigma for smoothing histograms
+  valid values  : in theory any float - probably not a good idea to mess with this
+  default value : 6.0
+  exposed       : 0
+
+-hist_step_s
+  type          : double
+  purpose       : step size for increasing signma for smoothing histograms
+  valid values  : in theory any float - probably not a good idea to mess with this
+  default value : 0.5
+  exposed       : 0
+
+-hist_max_point_zscore
+  type          : double
+  purpose       : maximum z-score for smoothed histogram (deviation from unsmoothed histogram)
+  valid values  : in theory any float - probably not a good idea to mess with this
+  default value : 3.0
+  exposed       : 0
+
+-hist_max_point_error
+  type          : double
+  purpose       : maximum error in Y for smoothed histogram
+  valid values  : in theory any float - probably not a good idea to mess with this
+  default value : 0.05
+  exposed       : 0
+
+-site_def_type
+  type          : string
+  purpose       : controls how the protein site is defined
+  valid values  : ligand,file
+  default value : ligand
+  exposed       : 1
+
+-site_max_dist
+  type          : double
+  purpose       : maximum distance (Angstrom) from ligand for protein atom to be included in site
+  valid values  : any float >3.0
+  default value : 6.0
+  exposed       : 1
+
+-site_ligand_file
+  type          : string
+  purpose       : ligand file used to define protein site atoms
+  valid values  : any valid file path
+  default value : undefined
+  exposed       : 1
+
+-site_file
+  type          : string
+  purpose       : file specifying protein atoms to be included in site
+  valid values  : any valid file path
+  default value : undefined
+  exposed       : 1
+
+-probe_name
+  type          : string
+  purpose       : name of the atom type used as a probe in a field calculation
+  valid values  : any atom type name
+  default value : H2O
+  exposed       : 1
+
+-grid_file
+  type          : string
+  purpose       : filename for a calculated field (can end in .gz)
+  valid values  : any valid file path
+  default value : pli.grd
+  exposed       : 1
+
+-optimise_u_axis
+  type          : integer
+  purpose       : controls whether the orientation of a probe is optimised in a field calculation
+  valid values  : 0,1
+  default value : 1
+  exposed       : 1
+
+-grid_spacing
+  type          : double
+  purpose       : grid spacing (Angstrom) of a calculated field
+  valid values  : in theory any float >0.01
+  default value : 0.5
+  exposed       : 1
+
+-grid_padding
+  type          : double
+  purpose       : grid padding applied around a calculated field
+  valid values  : in theory any float >0.00
+  default value : 6.0
+  exposed       : 1
+
+-n_lebedev_points
+  type          : integer
+  purpose       : number of lebedev orientations used for probe optimisation in a field calculation
+  valid values  : any valid integer (see lebedev.params)
+  default value : 26
+  exposed       : 1
+
+-minimise
+  type          : integer
+  purpose       : controls if the system is minimised
+  valid values  : 0,1
+  default value : 0
+  exposed       : 1
+
+-min_max_iter
+  type          : integer
+  purpose       : maximum number of minimisation iterations
+  valid values  : any integer >0
+  default value : 100
+  exposed       : 1
+
+-min_algorithm
+  type          : string
+  purpose       : algorithm used for minimisation (cg=conjugate gradient;sd=steepest descent)
+  valid values  : cg,sd
+  default value : cg
+  exposed       : 1
+
+-min_space
+  type          : string
+  purpose       : atom selection to which minimisation is applied
+  valid values  : ligand,water (can be comma separated list)
+  default value : ligand,water
+  exposed       : 1
+
+-min_tether_atoms
+  type          : integer
+  purpose       : undefined
+  valid values  : undefined
+  default value : 0
+  exposed       : 0
+
+-min_tether_k
+  type          : double
+  purpose       : undefined
+  valid values  : undefined
+  default value : 1.0
+  exposed       : 0
+
+-pliff_zero_coeff
+  type          : double
+  purpose       : undefined
+  valid values  : undefined
+  default value : 0.00
+  exposed       : 0
+
+-pliff_contact_coeff
+  type          : double
+  purpose       : undefined
+  valid values  : undefined
+  default value : 0.0034
+  exposed       : 0
+
+-pliff_geometry_coeff
+  type          : double
+  purpose       : undefined
+  valid values  : undefined
+  default value : 0.0034
+  exposed       : 0
+
+-pliff_ignore_long_contacts
+  type          : integer
+  purpose       : undefined
+  valid values  : undefined
+  default value : 0
+  exposed       : 0
+
+-use_alpha_potentials
+  type          : integer
+  purpose       : use alpha dependent potentials in PLIff energy
+  valid values  : 0,1
+  default value : 1
+  exposed       : 0
+
+-use_beta_potentials
+  type          : integer
+  purpose       : use beta dependent potentials in PLIff energy
+  valid values  : 0,1
+  default value : 1
+  exposed       : 0
+
+-use_clash_potentials
+  type          : integer
+  purpose       : switch to Lennard-Jones potentials for repulsive part of PLIff distance potential
+  valid values  : 0,1
+  default value : 1
+  exposed       : 1
+
+-r_alpha_correction
+  type          : string
+  purpose       : type of r-alpha correction
+  valid values  : block,none
+  default value : block
+  exposed       : 0
+
+-r_beta_correction
+  type          : string
+  purpose       : type of r-beta correction
+  valid values  : block,none
+  default value : block
+  exposed       : 0
+
+-alpha_beta_correction
+  type          : string
+  purpose       : type of alpha-beta correction
+  valid values  : block,none
+  default value : block
+  exposed       : 0
+
+-r_alpha_correction_r1
+  type          : double
+  purpose       : r-alpha correct start r (Angstrom)
+  valid values  : in theory any float - probably not a good idea to mess with this
+  default value : 1.0
+  exposed       : 0
+
+-r_alpha_correction_r2
+  type          : double
+  purpose       : r-alpha correction end r (Angstrom)
+  valid values  : in theory any float - probably not a good idea to mess with this
+  default value : 2.0
+  exposed       : 0
+
+-r_beta_correction_r1
+  type          : double
+  purpose       : r-beta correction start r (Angstrom)
+  valid values  : in theory any float - probably not a good idea to mess with this
+  default value : 1.0
+  exposed       : 0
+
+-r_beta_correction_r2
+  type          : double
+  purpose       : r-beta correction end r (Angstrom)
+  valid values  : in theory any float - probably not a good idea to mess with this
+  default value : 2.0
+  exposed       : 0
+
+-alpha_beta_correction_alpha1
+  type          : double
+  purpose       : alpha-beta correction start alpha (degree)
+  valid values  : in theory any float - probably not a good idea to mess with this
+  default value : 15.0
+  exposed       : 0
+
+-alpha_beta_correction_alpha2
+  type          : double
+  purpose       : alpha-beta correction end alpha (degree)
+  valid values  : in theory any float - probably not a good idea to mess with this
+  default value : 30.0
+  exposed       : 0
+
+-ff_max_stored_potentials
+  type          : integer
+  purpose       : maximum number of nonbonded ff potentials kept in memory
+  valid values  : in theory any integer >1
+  default value : 1000
+  exposed       : 0
+
+-id1
+  type          : integer
+  purpose       : undefined
+  valid values  : undefined
+  default value : -1
+  exposed       : 0
+
+-id2
+  type          : integer
+  purpose       : undefined
+  valid values  : undefined
+  default value : -1
+  exposed       : 0
+
+-hist_name
+  type          : string
+  purpose       : undefined
+  valid values  : undefined
+  default value : R
+  exposed       : 0

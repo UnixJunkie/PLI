@@ -1,0 +1,5 @@
+Type1   35   48  110 "Aromatic -BR"
+Type2   53   49  111 "Aliphatic -I"
+P       2.000000     1.000000   1
+lnP     0.693147     0.500000   1
+Precision HAHA

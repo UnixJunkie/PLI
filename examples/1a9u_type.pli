@@ -1,0 +1,5 @@
+mode type
+ligand 1a9u_ligand.pdb
+selection ligand
+output atoms
+astyle type

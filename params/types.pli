@@ -1,0 +1,2142 @@
+# PLI elements table
+#
+# 1. element ID
+# 2. element name
+# 3. covalent radius
+# 4. van-der-waals radius (not sure this is used)
+# 5. flag for metals
+
+elements
+    1   "H"       0.23     1.09          0
+    2   "HE"      1.50     1.40          0
+    3   "LI"      1.27     1.80          1
+    4   "BE"      0.96     1.40          0
+    5   "B"       0.90     1.70          0
+    6   "C"       0.76     1.78          0
+    7   "N"       0.69     1.65          0
+    8   "O"       0.65     1.40          0
+    9   "F"       0.56     1.38          0
+   10   "NE"      0.70     1.80          0
+   11   "NA"      1.70     1.80          1
+   12   "MG"      1.41     1.80          1
+   13   "AL"      1.20     1.80          1
+   14   "SI"      1.11     2.10          0
+   15   "P"       1.07     1.97          0
+   16   "S"       1.01     1.78          0
+   17   "CL"      0.98     1.65          0
+   18   "AR"      0.70     1.80          0
+   19   "K"       2.17     1.80          1
+   20   "CA"      1.73     1.80          1
+   21   "SC"      1.38     1.80          1
+   22   "TI"      1.38     1.80          1
+   23   "V"       1.38     1.80          1
+   24   "CR"      1.30     1.80          1
+   25   "MN"      1.38     1.80          1
+   26   "FE"      1.35     1.80          1
+   27   "CO"      1.42     1.80          1
+   28   "NI"      1.38     1.80          1
+   29   "CU"      1.32     1.80          1
+   30   "ZN"      1.30     1.80          1
+   31   "GA"      1.38     1.80          1
+   32   "GE"      1.38     1.80          1
+   33   "AS"      1.38     1.80          0
+   34   "SE"      1.16     1.80          0
+   35   "BR"      1.15     1.84          0
+   36   "KR"      0.70     1.80          0
+   37   "RB"      1.38     1.80          1
+   38   "SR"      1.38     1.80          1
+   39   "Y"       1.38     1.80          1
+   40   "ZR"      1.38     1.80          1
+   42   "MO"      1.38     1.80          1
+   48   "CD"      1.38     1.80          1
+   53   "I"       1.34     1.93          0
+   55   "CS"      1.38     1.80          1
+   56   "BA"      1.38     1.80          1
+   63   "EU"      1.38     1.80          1
+   70   "YB"      1.38     1.80          1
+   74   "W"       1.38     1.80          1
+   78   "PT"      1.38     1.80          1
+   79   "AU"      1.38     1.80          1
+   80   "HG"      1.38     1.80          1
+   81   "TL"      1.38     1.80          1
+   82   "PB"      1.38     1.80          1
+   92   "U"       1.38     1.80          1
+end_elements
+
+
+
+# PLI atom nodes table
+#
+# 1. node ID
+# 2. node name
+# 3. node element name
+# 4. number of single bonds
+# 5. number of double bonds
+# 6. number of triple bonds
+# 7. hybridisation (-1 for undefined)
+# 8. formal charge (not sure this is used)
+
+atom_nodes
+    1   ">B-"      "B"       3     0     0          3     0
+    2   ">B<"      "B"       4     0     0          3     0
+    3   "-C"       "C"       1     0     0          3     0
+    4   ">C"       "C"       2     0     0          3     0
+    5   ">C-"      "C"       3     0     0          3     0
+    6   ">C<"      "C"       4     0     0          3     0
+    7   "=C"       "C"       0     1     0          2     0
+    8   "=C-"      "C"       1     1     0          2     0
+    9   "=C<"      "C"       2     1     0          2     0
+   10   "=C="      "C"       0     2     0          1     0
+   11   "#C"       "C"       0     0     1          1     0
+   12   "#C-"      "C"       1     0     1          1     0
+   13   "-N"       "N"       1     0     0         -1     0
+   14   ">N"       "N"       2     0     0         -1     0
+   15   ">N-"      "N"       3     0     0         -1     0
+   16   ">N<"      "N"       4     0     0          3     1
+   17   "=N"       "N"       0     1     0          2     0
+   18   "=N-"      "N"       1     1     0          2     0
+   19   "=N<"      "N"       2     1     0          2     1
+   20   "=N="      "N"       0     2     0          1     1
+   21   ">>N-"     "N"       1     2     0          2     0
+   22   "#N"       "N"       0     0     1          1     0
+   23   "#N-"      "N"       1     0     1          1     1
+   24   "O"        "O"       0     0     0         -1     0
+   25   "-O"       "O"       1     0     0         -1     0
+   26   ">O"       "O"       2     0     0         -1     0
+   27   "=O"       "O"       0     1     0          2     0
+   28   "-F"       "F"       1     0     0         -1     0
+   29   "-SI"      "SI"      1     0     0         -1     0
+   30   ">SI"      "SI"      2     0     0         -1     0
+   31   ">SI-"     "SI"      3     0     0         -1     0
+   32   ">SI<"     "SI"      4     0     0         -1     0
+   33   "-P"       "P"       1     0     0         -1     0
+   34   ">P"       "P"       2     0     0         -1     0
+   35   ">P-"      "P"       3     0     0         -1     0
+   36   ">P<"      "P"       3     1     0         -1     0
+   37   "S"        "S"       0     0     0         -1     0
+   38   "-S"       "S"       1     0     0         -1     0
+   39   ">S"       "S"       2     0     0         -1     0
+   40   ">S-"      "S"       3     0     0         -1     0
+   41   ">S<"      "S"       2     2     0         -1     0
+   42   "=S"       "S"       0     1     0          2     0
+   43   "=S<"      "S"       2     1     0          2     0
+   44   "-CL"      "CL"      1     0     0         -1     0
+   45   "-BR"      "BR"      1     0     0         -1     0
+   46   "-I"       "I"       1     0     0         -1     0
+end_atom_nodes
+
+
+
+# PLI united atoms table:
+#
+# 1. united atom ID
+# 2. united atom name
+# 3. united atom node name
+# 4. hybridisation
+# 5. number of hydrogens (-1 for unspecified)
+# 6. formal charge
+# 7. van der waals radius
+# 8. ideal h-bond alpha (-1 for unspecified)
+# 9. ideal h-bond beta (-1 for unspecified)
+
+united_atoms
+    1   "-CH3"     "-C"         3     3     0     1.81    -1     -1
+    2   ">CH2"     ">C"         3     2     0     1.81    -1     -1
+    3   ">CH-"     ">C-"        3     1     0     1.81    -1     -1
+    4   ">C<"      ">C<"        3     0     0     1.81    -1     -1
+    5   "=CH2"     "=C"         2     2     0     1.74    -1     -1
+    6   "=CH-"     "=C-"        2     1     0     1.74     0     -1
+    7   "=C<"      "=C<"        2     0     0     1.74    -1     -1
+    8   "#CH"      "#C"         1     1     0     1.66    -1     -1
+    9   "#C"       "#C"         1     0    -1     1.66    -1     -1
+   10   "#C-"      "#C-"        1     0     0     1.66    -1     -1
+   11   "=C="      "=C="        1     0     0     1.66    -1     -1
+   12   "-N?"      "-N"         3    -1     0     1.66    60     -1
+   13   "-NH3"     "-N"         3     3     1     1.66    60     -1
+   14   "-NH2"     "-N"         3     2     0     1.66    60     -1
+   15   "-NH2p"    "-N"         2     2     0     1.62    60     90
+   16   ">NH2"     ">N"         3     2     1     1.66    60      0
+   17   ">NH"      ">N"         3     1     0     1.66    60      0
+   18   ">NHp"     ">N"         2     1     0     1.62     0     -1
+   19   ">N?p"     ">N"         2    -1     0     1.62     0     -1
+   20   ">NH-"     ">N-"        3     1     1     1.66     0     -1
+   21   ">N-"      ">N-"        3     0     0     1.66     0     -1
+   22   ">Np-"     ">N-"        2     0     0     1.62    -1     -1
+   23   ">N<"      ">N<"        3     0     1     1.66    -1     -1
+   24   "=NH"      "=N"         2     1     0     1.62    60     -1
+   25   "=NH2"     "=N"         2     2     1     1.62    60     90
+   26   "=N-"      "=N-"        2     0     0     1.62     0     -1
+   27   "=NH-"     "=N-"        2     1     1     1.62     0     -1
+   28   "=N<"      "=N<"        2     1     1     1.62    -1     -1
+   29   ">>N-"     ">>N-"       2     0     1     1.62    -1     -1
+   30   "#N"       "#N"         1     0     0     1.50     0     -1
+   31   "#N-"      "#N-"        1     0     1     1.50    -1     -1
+   32   "=N="      "=N="        1     0     1     1.50    -1     -1
+   33   "H2O"      "O"          3     2     0     1.40    -1     -1
+   34   "-OH"      "-O"         3     1     0     1.40    60     -1
+   35   "-OHp"     "-O"         3     1     0     1.40    60     90
+   36   "-O"       "-O"         3     0    -1     1.40    -1     -1
+   37   "=O"       "=O"         2     0     0     1.40    60     90
+   38   "~O?"      "=O"         2    -1     0     1.40    60     90
+   39   ">O"       ">O"         3     0     0     1.40    60      0
+   40   "S"        "S"          3     0     0     1.68    -1     -1
+   41   "-SH"      "-S"         3     1     0     1.68    -1     -1
+   42   "-S"       "-S"         3     0    -1     1.68     0     -1
+   43   ">S"       ">S"         3     0     0     1.78    -1     -1
+   44   ">S<"      ">S<"        3     0     0     1.78    -1     -1
+   45   ">P<"      ">P<"        3     0     0     1.97    -1     -1
+   46   "-F"       "-F"         3     0     0     1.38    -1     -1
+   47   "-CL"      "-CL"        3     0     0     1.65    -1     -1
+   48   "-BR"      "-BR"        3     0     0     1.84    -1     -1
+   49   "-I"       "-I"         3     0     0     1.93    -1     -1
+end_united_atoms
+
+
+# PLI atom geometries table
+#
+#  1. id
+#  2. name
+#  3. number of bonds for main atom (-1 for unspecified)
+#  4. planarity of the main atom (-1 for unspecified)
+#  5. number of bonds for the secondary atom (-1 for unspecified)
+#  6. planarity of the secondary atom (-1 for unspecified)
+#  7. does the atom have a u axis?
+#  8. symmetry of the alpha angle with the u axis
+#  9. does the atom have a v axis?
+# 10. symmetry of the beta angle with the v axis
+
+atom_geometries
+    1   "X"       -1    -1    -1    -1     0 0     0 0     -0.8 2.80     0.0   0.0     0.0   0.0
+    2   "-X"       1    -1    -1    -1     1 1     0 0     -0.8 2.80     0.0 130.0     0.0   0.0
+    3   ">X"       2    -1    -1    -1     1 1     0 0     -0.8 2.80     0.0 120.0     0.0  90.0
+    4   ">X-"      3     0    -1    -1     1 1     0 0     -0.8 2.80     0.0 100.0     0.0   0.0
+    5   ">Xp-"     3     1    -1    -1     1 2     0 0     -0.8 2.80     0.0  50.0     0.0   0.0
+    6   "-Y-X"     1    -1     2    -1     1 1     1 2     -0.8 2.80     0.0 115.0     0.0 180.0
+    7   ">Y-X"     1    -1     3     0     1 1     1 2     -0.8 2.80     0.0 110.0     0.0 180.0
+    8   ">Yp-X"    1    -1     3     1     1 1     1 4     -0.8 2.80     0.0 115.0     0.0  90.0
+end_atom_geometries
+
+
+
+# PLI atom types table
+#
+# 1. atom type ID
+# 2. atom type name
+# 3. atom type united atom name
+# 4. atom type geometry name
+# 5. atom type flags
+# 6. aromaticity flag (not used by PLI code)
+# 7. lipophilicity flag (not used by PLI code)
+# 8. generic type flag (not used by PLI code)
+# 9. number of hydrogens (-1 for unspecified)
+# 10. number of lone pairs (-1 for unspecified)
+# 11. hydrogen bond geometry
+
+atom_types
+    1   "-CH3"                                   "-CH3"    "-X"    136    0    1   0   3    0   NONE
+    2   "-CH3(+)"                                "-CH3"    "-X"    128    0    1   0   3    0   NONE
+    3   ">CH2"                                   ">CH2"    ">X"    136    0    1   0   2    0   NONE
+    4   ">CH2(+)"                                ">CH2"    ">X"    136    0    1   0   2    0   NONE
+    5   ">CH-"                                   ">CH-"    ">X-"   136    0    1   0   1    0   NONE
+    6   ">CH-(+)"                                ">CH-"    ">X-"   136    0    1   0   2    0   NONE
+    7   ">C<"                                    ">C<"     "X"     128    0    1   0   0    0   NONE
+    8   "=CH2"                                   "=CH2"    "-X"    128    0    1   0   2    0   NONE
+    9   "=CH-"                                   "=CH-"    ">X"    128    0    1   0   1    0   NONE
+   10   "Aromatic CH"                            "=CH-"    ">X"    192    1    1   1   1    0   NONE
+   11   "Aromatic donor CH"                      "=CH-"    ">X"    196    1    1   1   1    0   VECTOR1
+   12   "=CH- HIS-CD2"                           "=CH-"    ">X"    204    1    1   0   1    0   VECTOR1
+   13   "=CH- HIS-CE1"                           "=CH-"    ">X"    204    1    1   0   1    0   VECTOR1
+   14   "=CH- PHE-CD"                            "=CH-"    ">X"    200    1    1   0   1    0   NONE
+   15   "=CH- PHE-CE"                            "=CH-"    ">X"    200    1    1   0   1    0   NONE
+   16   "=CH- PHE-CZ"                            "=CH-"    ">X"    200    1    1   0   1    0   NONE
+   17   "=CH- TRP-CD1"                           "=CH-"    ">X"    204    1    1   0   1    0   VECTOR1
+   18   "=CH- TRP-CE3"                           "=CH-"    ">X"    200    1    1   0   1    0   NONE
+   19   "=CH- TRP-CZ2"                           "=CH-"    ">X"    200    1    1   0   1    0   NONE
+   20   "=CH- TRP-CZ3"                           "=CH-"    ">X"    200    1    1   0   1    0   NONE
+   21   "=CH- TRP-CH2"                           "=CH-"    ">X"    200    1    1   0   1    0   NONE
+   22   "=CH- TYR-CD"                            "=CH-"    ">X"    200    1    1   0   1    0   NONE
+   23   "=CH- TYR-CE"                            "=CH-"    ">X"    200    1    1   0   1    0   NONE
+   24   "=C<"                                    "=C<"     ">Xp-"  128    0    1   1   0    0   NONE
+   25   "Amidine =C<"                            "=C<"     ">Xp-"  128    0    1   0   0    0   NONE
+   26   "Carbonyl =C<"                           "=C<"     ">Xp-"  128    0    1   0   0    0   NONE
+   27   "Amide =C<"                              "=C<"     ">Xp-"  136    0    1   0   0    0   NONE
+   28   "Carboxyl =C<"                           "=C<"     ">Xp-"  136    0    1   0   0    0   NONE
+   29   "Aromatic =C<"                           "=C<"     ">Xp-"  192    1    1   1   0    0   NONE
+   30   "=C< ARG-CZ"                             "=C<"     ">Xp-"  136    0    1   0   0    0   NONE
+   31   "=C< HIS-CG"                             "=C<"     ">Xp-"  200    1    1   0   0    0   NONE
+   32   "=C< PHE-CG"                             "=C<"     ">Xp-"  200    1    1   0   0    0   NONE
+   33   "=C< TRP-CG"                             "=C<"     ">Xp-"  200    1    1   0   0    0   NONE
+   34   "=C< TRP-CD2"                            "=C<"     ">Xp-"  200    1    1   0   0    0   NONE
+   35   "=C< TRP-CE2"                            "=C<"     ">Xp-"  200    1    1   0   0    0   NONE
+   36   "=C< TYR-CG"                             "=C<"     ">Xp-"  200    1    1   0   0    0   NONE
+   37   "=C< TYR-CZ"                             "=C<"     ">Xp-"  200    1    1   0   0    0   NONE
+   38   "#CH"                                    "#CH"     "-X"    132    0    1   0   1    0   NONE
+   39   "#C"                                     "#C"      "-X"    130    0    1   0   0    0   NONE
+   40   "#C-"                                    "#C-"     "X"     128    0    1   0   0    0   NONE
+   41   "-N?"                                    "-N?"     "-X"     11    0    0   0  -1   -1   CONE1
+   42   "-CH2-N?"                                "-N?"     "-Y-X"   11    0    0   0  -1   -1   CONE1
+   43   "-NH3"                                   "-NH3"    "-X"      9    0    0   0   3    0   CONE1
+   44   "-CH2-NH3"                               "-NH3"    "-Y-X"    9    0    0   0   3    0   CONE1
+   45   "-NH2"                                   "-NH2"    "-X"    139    0    1   0   2    1   CONE1
+   46   "-NH2p"                                  "-NH2p"   ">Yp-X" 129    0    1   0   2    0   VECTORPAIR1
+   47   "Amide -NH2"                             "-NH2p"   ">Yp-X" 137    0    1   0   2    0   VECTORPAIR1
+   48   ">NH2"                                   ">NH2"    ">X"      1    0    0   0   2    0   VECTORPAIR2
+   49   ">NH"                                    ">NH"     ">X"      1    0    0   0   1    1   VECTORPAIR2
+   50   ">NHp"                                   ">NHp"    ">X"    129    0    1   1   1    0   VECTOR1
+   51   "Aromatic NH"                            ">NHp"    ">X"    193    1    1   0   1    0   VECTOR1
+   52   "Pyridone N?"                            ">N?p"    ">X"    195    1    1   0  -1   -1   VECTOR1
+   53   "Pyridine N?"                            ">N?p"    ">X"    195    1    1   0  -1   -1   VECTOR1
+   54   "Amide >NH"                              ">NHp"    ">X"    137    0    1   0   1    0   VECTOR1
+   55   ">NH TRP-NE1"                            ">NHp"    ">X"    201    1    1   0   1    0   VECTOR1
+   56   "Imidazole N?"                           ">N?p"    ">X"    203    1    1   0  -1   -1   VECTOR1
+   57   "Pyrazole N?"                            ">N?p"    ">X"    195    1    1   0  -1   -1   VECTOR1
+   58   "Triazole N?"                            ">N?p"    ">X"    195    1    1   0  -1   -1   VECTOR1
+   59   ">NH-"                                   ">NH-"    ">X-"     1    0    0   0   1    0   VECTOR1
+   60   ">N-"                                    ">N-"     ">X-"     0    0    0   0   0    0   NONE
+   61   ">Np-"                                   ">Np-"    ">Xp-"  128    0    1   0   0    0   NONE
+   62   "Amide >N-"                              ">Np-"    ">Xp-"  136    0    1   0   0    0   NONE
+   63   ">N<"                                    ">N<"     "X"       0    0    0   0   0    0   NONE
+   64   "=NH"                                    "=NH"     "-X"    129    0    1   0   1    0   CONE1
+   65   "Amidine =NH2"                           "=NH2"    ">Yp-X" 129    0    1   0   2    0   VECTORPAIR1
+   66   "=NH2 ARG-NH"                            "=NH2"    ">Yp-X" 137    0    1   0   2    0   VECTORPAIR1
+   67   "=N-"                                    "=N-"     ">X"    130    0    1   0   0    1   VECTOR1
+   68   "Aromatic =N-"                           "=N-"     ">X"    194    1    1   0   0    1   VECTOR1
+   69   "=NH-"                                   "=NH-"    ">X"    129    0    1   1   1    0   VECTOR1
+   70   "Aromatic =NH-"                          "=NH-"    ">X"    193    1    1   0   1    0   VECTOR1
+   71   "Amidine =NH-"                           "=NH-"    ">X"    129    0    1   0   1    0   VECTOR1
+   72   "=NH- ARG-NE"                            "=NH-"    ">X"    137    0    1   0   1    0   VECTOR1
+   73   "=N<"                                    "=N<"     ">Xp-"  128    0    1   0   0    0   NONE
+   74   "Nitro N"                                ">>N-"    ">Xp-"  128    0    1   0   0    0   NONE
+   75   "#N"                                     "#N"      "-X"      2    0    0   0   0    1   CAP1
+   76   "=N="                                    "=N="     "X"       0    0    0   0   0    0   NONE
+   77   "#N-"                                    "#N-"     "X"       0    0    0   0   0    0   NONE
+   78   "H2O"                                    "H2O"     "X"       3    0    0   0   2    2   POINT
+   79   "-OH"                                    "-OH"     "-X"      3    0    0   1   1    2   CAP1
+   80   "Aliphatic -OH"                          "-OH"     "-X"      3    0    0   0   1    2   CAP1
+   81   "Aromatic -OH"                           "-OHp"    ">Yp-X"  11    0    0   0   1    2   CAP1
+   82   "Serine -OH"                             "-OH"     "-Y-X"   11    0    0   0   1    2   CAP1
+   83   "Threonine -OH"                          "-OH"     ">Y-X"   11    0    0   0   1    2   CAP1
+   84   "Carboxyl -OH"                           "-OHp"    ">Yp-X"  11    0    0   0   1    2   CAP1
+   85   "=O"                                     "=O"      "-X"      2    0    0   1   0    2   CAP1
+   86   "Aldehyde =O"                            "=O"      "-Y-X"    2    0    0   0   0    2   CAP1
+   87   "Ketone =O"                              "=O"      ">Yp-X"   2    0    0   0   0    2   CAP1
+   88   "Pyridone O?"                            "~O?"     ">Yp-X"   3    0    0   0  -1   -1   CAP1
+   89   "Primary amide =O"                       "=O"      ">Yp-X"  10    0    0   0   0    2   CAP1
+   90   "Secondary amide =O"                     "=O"      ">Yp-X"  10    0    0   0   0    2   CAP1
+   91   "Tertiary amide =O"                      "=O"      ">Yp-X"  10    0    0   0   0    2   CAP1
+   92   "Carboxyl O?"                            "~O?"     ">Yp-X"  11    0    0   0  -1   -1   CAP1
+   93   "Carboxyl =O"                            "=O"      ">Yp-X"  10    0    0   0   0    2   CAP1
+   94   "Nitro =O"                               "=O"      ">Yp-X"   2    0    0   0   0    2   CAP1
+   95   "Sulfate/Phosphate =O"                   "=O"      "-X"      2    0    0   0   0    3   CAP1
+   96   "[S/P]=O"                                "=O"      "-X"      2    0    0   0   0    3   CAP1
+   97   ">O"                                     ">O"      ">X"      2    0    0   1   0    2   POINT
+   98   "Aliphatic >O"                           ">O"      ">X"      2    0    0   0   0    2   POINT
+   99   "Aromatic >O"                            ">O"      ">X"    194    1    1   0   0    2   VECTOR1
+  100   "Sulfide ion"                            "S"       "X"       2    0    0   0   0    4   POINT
+  101   "-SH"                                    "-SH"     "-X"    136    0    1   0   1    3   POINT
+  102   ">S"                                     ">S"      ">X"    136    0    1   0   0    2   POINT
+  103   "Quaternary S"                           ">S<"     "X"       0    0    0   0   0    0   NONE
+  104   "Quaternary P"                           ">P<"     "X"       0    0    0   0   0    0   NONE
+  105   "Aliphatic -F"                           "-F"      "-X"    128    0    1   0   0    0   NONE
+  106   "Aromatic -F"                            "-F"      "-X"    128    0    1   0   0    0   NONE
+  107   "Aliphatic -CL"                          "-CL"     "-X"    128    0    1   0   0    0   NONE
+  108   "Aromatic -CL"                           "-CL"     "-X"    128    0    1   0   0    0   NONE
+  109   "Aliphatic -BR"                          "-BR"     "-X"    128    0    1   0   0    0   NONE
+  110   "Aromatic -BR"                           "-BR"     "-X"    128    0    1   0   0    0   NONE
+  111   "Aliphatic -I"                           "-I"      "-X"    128    0    1   0   0    0   NONE
+  112   "Aromatic -I"                            "-I"      "-X"    128    0    1   0   0    0   NONE
+end_atom_types
+
+
+
+# PLI ambiguous atom types table
+#
+# 1. the ambiguous atom type
+# 2. the non-ambiguous atom type
+# 3. the functional group status before assignment
+# 4. the probability of the ambiguous atom type
+# 5. the functional group status after assignment
+
+ambiguous_types
+  "Pyridone N?"           "Aromatic =N-"          0    0.0010   1
+  "Pyridone N?"           "Aromatic NH"           0    0.9990   2
+  "Pyridone N?"           "Aromatic =N-"          1    1.0000   1   # O is OH, N must be =N-
+  "Pyridone N?"           "Aromatic NH"           2    1.0000   2   # O is =O, N must be NH
+  "Pyridine N?"           "Aromatic =N-"          0    0.5000   0
+  "Pyridine N?"           "Aromatic NH"           0    0.5000   0
+  "Pyridone O?"           "Aromatic -OH"          0    0.0010   1
+  "Pyridone O?"           "Secondary amide =O"    0    0.9990   2
+  "Pyridone O?"           "Aromatic -OH"          1    1.0000   1   # N is =N-, O must be OH
+  "Pyridone O?"           "Secondary amide =O"    2    1.0000   2   # N is NH, O must be =O
+  "Imidazole N?"          "Aromatic NH"           0    0.7500   1
+  "Imidazole N?"          "Aromatic =N-"          0    0.2500   2
+  "Imidazole N?"          "Aromatic =N-"          1    0.3333   1   # other N is NH
+  "Imidazole N?"          "Aromatic NH"           1    0.6667   1   # other N is NH
+  "Imidazole N?"          "Aromatic NH"           2    1.0000   2   # other N is =N-
+  "Pyrazole N?"           "Aromatic NH"           0    0.5000   1
+  "Pyrazole N?"           "Aromatic =N-"          0    0.5000   2
+  "Pyrazole N?"           "Aromatic =N-"          1    1.0000   1   # other N is NH
+  "Pyrazole N?"           "Aromatic NH"           2    1.0000   2   # other N is =N-
+  "Triazole N?"           "Aromatic NH"           0    0.5000   1
+  "Triazole N?"           "Aromatic =N-"          0    0.5000   2
+  "Triazole N?"           "Aromatic =N-"          1    1.0000   1   # one other N is NH
+  "Triazole N?"           "Aromatic NH"           2    0.5000   1   # one other N is =N-
+  "Triazole N?"           "Aromatic =N-"          2    0.5000   3   # one other N is =N-
+  "Triazole N?"           "Aromatic NH"           3    1.0000   3   # other two Ns are =N-
+  "Carboxyl O?"           "Carboxyl =O"           0    0.9995   1
+  "Carboxyl O?"           "Carboxyl -OH"          0    0.0005   2
+  "Carboxyl O?"           "Carboxyl =O"           1    0.9995   1   # other O is =O
+  "Carboxyl O?"           "Carboxyl -OH"          1    0.0005   1   # other O is =O
+  "Carboxyl O?"           "Carboxyl =O"           2    1.0000   2   # other O is OH, this must be =O
+  "-N?"                   "-NH3"                  0    0.9990   0
+  "-N?"                   "-NH2"                  0    0.0010   0
+  "-CH2-N?"               "-CH2-NH3"              0    0.9990   0
+  "-CH2-N?"               "-NH2"                  0    0.0010   0
+end_ambiguous_types
+
+
+
+# PLI residue atoms table
+#
+# 1. residue atom ID
+# 2. residue name
+# 3. atom name
+# 4. assigned atom type name
+
+residue_atoms
+    5   "ALA"      " CB "     "-CH3"
+   11   "ARG"      " CB "     ">CH2"
+   12   "ARG"      " CG "     ">CH2"
+   13   "ARG"      " CD "     ">CH2(+)"
+   14   "ARG"      " NE "     "=NH- ARG-NE"
+   15   "ARG"      " CZ "     "=C< ARG-CZ"
+   16   "ARG"      " NH1"     "=NH2 ARG-NH"
+   17   "ARG"      " NH2"     "=NH2 ARG-NH"
+   23   "ASN"      " CB "     ">CH2"
+   24   "ASN"      " CG "     "Amide =C<"
+   25   "ASN"      " OD1"     "Primary amide =O"
+   26   "ASN"      " ND2"     "Amide -NH2"
+   32   "ASP"      " CB "     ">CH2"
+   33   "ASP"      " CG "     "Carboxyl =C<"
+   34   "ASP"      " OD1"     "Carboxyl O?"
+   35   "ASP"      " OD2"     "Carboxyl O?"
+   41   "CYS"      " CB "     ">CH2"
+   42   "CYS"      " SG "     "-SH"
+   48   "GLN"      " CB "     ">CH2"
+   49   "GLN"      " CG "     ">CH2"
+   50   "GLN"      " CD "     "Amide =C<"
+   51   "GLN"      " OE1"     "Primary amide =O"
+   52   "GLN"      " NE2"     "Amide -NH2"
+   58   "GLU"      " CB "     ">CH2"
+   59   "GLU"      " CG "     ">CH2"
+   60   "GLU"      " CD "     "Carboxyl =C<"
+   61   "GLU"      " OE1"     "Carboxyl O?"
+   62   "GLU"      " OE2"     "Carboxyl O?"
+   73   "HIS"      " CB "     ">CH2"
+   74   "HIS"      " CG "     "=C< HIS-CG"
+   75   "HIS"      " ND1"     "Imidazole N?"
+   76   "HIS"      " CD2"     "=CH- HIS-CD2"
+   77   "HIS"      " CE1"     "=CH- HIS-CE1"
+   78   "HIS"      " NE2"     "Imidazole N?"
+   84   "ILE"      " CB "     ">CH-"
+   85   "ILE"      " CG1"     ">CH2"
+   86   "ILE"      " CG2"     "-CH3"
+   87   "ILE"      " CD1"     "-CH3"
+   93   "LEU"      " CB "     ">CH2"
+   94   "LEU"      " CG "     ">CH-"
+   95   "LEU"      " CD1"     "-CH3"
+   96   "LEU"      " CD2"     "-CH3"
+  102   "LYS"      " CB "     ">CH2"
+  103   "LYS"      " CG "     ">CH2"
+  104   "LYS"      " CD "     ">CH2"
+  105   "LYS"      " CE "     ">CH2(+)"
+  106   "LYS"      " NZ "     "-CH2-N?"
+  112   "MET"      " CB "     ">CH2"
+  113   "MET"      " CG "     ">CH2"
+  114   "MET"      " SD "     ">S"
+  115   "MET"      " CE "     "-CH3"
+  121   "PHE"      " CB "     ">CH2"
+  122   "PHE"      " CG "     "=C< PHE-CG"
+  123   "PHE"      " CD1"     "=CH- PHE-CD"
+  124   "PHE"      " CD2"     "=CH- PHE-CD"
+  125   "PHE"      " CE1"     "=CH- PHE-CE"
+  126   "PHE"      " CE2"     "=CH- PHE-CE"
+  127   "PHE"      " CZ "     "=CH- PHE-CZ"
+  133   "PRO"      " CB "     ">CH2"
+  134   "PRO"      " CG "     ">CH2"
+  135   "PRO"      " CD "     ">CH2"
+  141   "SER"      " CB "     ">CH2"
+  142   "SER"      " OG "     "Serine -OH"
+  148   "THR"      " CB "     ">CH-"
+  149   "THR"      " OG1"     "Threonine -OH"
+  150   "THR"      " CG2"     "-CH3"
+  156   "TRP"      " CB "     ">CH2"
+  157   "TRP"      " CG "     "=C< TRP-CG"
+  158   "TRP"      " CD1"     "=CH- TRP-CD1"
+  159   "TRP"      " CD2"     "=C< TRP-CD2"
+  160   "TRP"      " NE1"     ">NH TRP-NE1"
+  161   "TRP"      " CE2"     "=C< TRP-CE2"
+  162   "TRP"      " CE3"     "=CH- TRP-CE3"
+  163   "TRP"      " CZ2"     "=CH- TRP-CZ2"
+  164   "TRP"      " CZ3"     "=CH- TRP-CZ3"
+  165   "TRP"      " CH2"     "=CH- TRP-CH2"
+  171   "TYR"      " CB "     ">CH2"
+  172   "TYR"      " CG "     "=C< TYR-CG"
+  173   "TYR"      " CD1"     "=CH- TYR-CD"
+  174   "TYR"      " CD2"     "=CH- TYR-CD"
+  175   "TYR"      " CE1"     "=CH- TYR-CE"
+  176   "TYR"      " CE2"     "=CH- TYR-CE"
+  177   "TYR"      " CZ "     "=C< TYR-CZ"
+  178   "TYR"      " OH "     "Aromatic -OH"
+  184   "VAL"      " CB "     ">CH-"
+  185   "VAL"      " CG1"     "-CH3"
+  186   "VAL"      " CG2"     "-CH3"
+  188   "HOH"      " O  "     "H2O"
+  189   "HEM"      " N A"     "Aromatic =N-"
+  190   "HEM"      " N B"     "Aromatic =N-"
+  191   "HEM"      " N C"     "Aromatic =N-"
+  192   "HEM"      " N D"     "Aromatic =N-"
+end_residue_atoms
+
+
+
+# PLI atom type definitions:
+
+# Methyl C next to N+
+
+atom_type_def
+
+  name "-CH3(+)"
+
+  atom_node_def
+    name "-C"
+    atom_node_def
+      name ">N"
+      atom_node_def
+        element "C"
+        hybridisation 3
+      end_atom_node_def
+      atom_node_def
+        element "C"
+        hybridisation 3
+      end_atom_node_def
+    end_atom_node_def
+  end_atom_node_def
+
+  atom_node_def
+    name "-C"
+    atom_node_def
+      name ">N-"
+      atom_node_def
+        element "C"
+        hybridisation 3
+      end_atom_node_def
+      atom_node_def
+        element "C"
+        hybridisation 3
+      end_atom_node_def
+      atom_node_def
+        element "C"
+        hybridisation 3
+      end_atom_node_def
+    end_atom_node_def
+  end_atom_node_def
+
+  atom_node_def
+    name "-C"
+    atom_node_def
+      name ">N<"
+    end_atom_node_def
+  end_atom_node_def
+
+end_atom_type_def
+
+
+
+# Generic methyl C
+
+atom_type_def
+
+  name "-CH3"
+
+  atom_node_def
+    name "-C"
+  end_atom_node_def
+
+end_atom_type_def
+
+
+
+# Terminal vinyl C
+
+atom_type_def
+
+  name "=CH2"
+
+  atom_node_def
+    name "=C"
+  end_atom_node_def
+
+end_atom_type_def
+
+
+
+# Terminal iso-nitrile C
+
+atom_type_def
+
+  name "#C"
+
+  atom_node_def
+    name "#C"
+    atom_node_def
+      name "#N-"
+    end_atom_node_def
+  end_atom_node_def
+
+end_atom_type_def
+
+
+
+# Terminal alkyne C
+
+atom_type_def
+
+  name "#CH"
+
+  atom_node_def
+    name "#C"
+  end_atom_node_def
+
+end_atom_type_def
+
+
+
+# Methylene C attached to N+
+
+atom_type_def
+
+  name ">CH2(+)"
+
+  atom_node_def
+    name ">C"
+    atom_node_def
+      name "-N"
+      atom_node_def
+        element "C"
+        hybridisation 3
+      end_atom_node_def
+    end_atom_node_def
+  end_atom_node_def
+
+  atom_node_def
+    name ">C"
+    atom_node_def
+      name ">N"
+      atom_node_def
+        element "C"
+        hybridisation 3
+      end_atom_node_def
+      atom_node_def
+        element "C"
+        hybridisation 3
+      end_atom_node_def
+    end_atom_node_def
+  end_atom_node_def
+
+  atom_node_def
+    name ">C"
+    atom_node_def
+      name ">N-"
+      atom_node_def
+        element "C"
+        hybridisation 3
+      end_atom_node_def
+      atom_node_def
+        element "C"
+        hybridisation 3
+      end_atom_node_def
+      atom_node_def
+        element "C"
+        hybridisation 3
+      end_atom_node_def
+    end_atom_node_def
+  end_atom_node_def
+
+  atom_node_def
+    name ">C"
+    atom_node_def
+      name ">N<"
+    end_atom_node_def
+  end_atom_node_def
+
+end_atom_type_def
+
+
+
+# Generic methylene C
+
+atom_type_def
+
+  name ">CH2"
+
+  atom_node_def
+    name ">C"
+  end_atom_node_def
+
+end_atom_type_def
+
+
+
+# Aromatic CH donor
+
+atom_type_def
+
+  name "Aromatic donor CH"
+
+  atom_node_def
+    name "=C-"
+    aromatic 1
+    atom_node_def
+      element "N"
+      aromatic 1
+    end_atom_node_def
+  end_atom_node_def
+
+end_atom_type_def
+
+
+
+# Generic aromatic CH
+
+atom_type_def
+
+  name "Aromatic CH"
+
+  atom_node_def
+    name "=C-"
+    aromatic 1
+  end_atom_node_def
+
+end_atom_type_def
+
+
+
+# Generic sp2 CH
+
+atom_type_def
+
+  name "=CH-"
+
+  atom_node_def
+    name "=C-"
+  end_atom_node_def
+
+end_atom_type_def
+
+
+
+# Linking alkyne C
+
+atom_type_def
+
+  name "#C-"
+
+  atom_node_def
+    name "#C-"
+  end_atom_node_def
+
+end_atom_type_def
+
+
+
+
+# Amidine =C<
+
+atom_type_def
+
+  name "Amidine =C<"
+
+  atom_node_def
+    name "=C<"
+    atom_node_def
+      name "=N"
+    end_atom_node_def
+    atom_node_def
+      name "-N"
+    end_atom_node_def
+  end_atom_node_def
+
+  atom_node_def
+    name "=C<"
+    atom_node_def
+      name "-N"
+    end_atom_node_def
+    atom_node_def
+      name "-N"
+    end_atom_node_def
+  end_atom_node_def
+
+  atom_node_def
+    name ">C-"
+    planar 1
+    atom_node_def
+      name "-N"
+    end_atom_node_def
+    atom_node_def
+      name "-N"
+    end_atom_node_def
+  end_atom_node_def
+
+end_atom_type_def
+
+
+
+
+# Tertiary aliphatic C attached to N+
+ 
+atom_type_def
+
+  name ">CH-(+)"
+
+  atom_node_def
+    name ">C-"
+    atom_node_def
+      name "-N"
+      atom_node_def
+        element "C"
+        hybridisation 3
+      end_atom_node_def
+    end_atom_node_def
+  end_atom_node_def
+
+  atom_node_def
+    name ">C-"
+    atom_node_def
+      name ">N"
+      atom_node_def
+        element "C"
+        hybridisation 3
+      end_atom_node_def
+      atom_node_def
+        element "C"
+        hybridisation 3
+      end_atom_node_def
+    end_atom_node_def
+  end_atom_node_def
+
+  atom_node_def
+    name ">C-"
+    atom_node_def
+      name ">N-"
+      atom_node_def
+        element "C"
+        hybridisation 3
+      end_atom_node_def
+      atom_node_def
+        element "C"
+        hybridisation 3
+      end_atom_node_def
+      atom_node_def
+        element "C"
+        hybridisation 3
+      end_atom_node_def
+    end_atom_node_def
+  end_atom_node_def
+
+  atom_node_def
+    name ">C-"
+    atom_node_def
+      name ">N<"
+    end_atom_node_def
+  end_atom_node_def
+
+end_atom_type_def
+
+
+
+
+# Generic tertiary aliphatic C
+ 
+atom_type_def
+
+  name ">CH-"
+
+  atom_node_def
+    name ">C-"
+  end_atom_node_def
+
+end_atom_type_def
+
+
+
+
+# Amide =C<
+
+atom_type_def
+
+  name "Amide =C<"
+
+  atom_node_def
+    name "=C<"
+    atom_node_def
+      name "=O"
+    end_atom_node_def
+    atom_node_def
+      name "-N"
+    end_atom_node_def
+  end_atom_node_def
+
+  atom_node_def
+    name "=C<"
+    atom_node_def
+      name "=O"
+    end_atom_node_def
+    atom_node_def
+      name ">N"
+    end_atom_node_def
+  end_atom_node_def
+
+  atom_node_def
+    name "=C<"
+    atom_node_def
+      name "=O"
+    end_atom_node_def
+    atom_node_def
+      name ">N-"
+    end_atom_node_def
+  end_atom_node_def
+
+end_atom_type_def
+
+
+
+# Carboxyl =C<
+
+atom_type_def
+
+  name "Carboxyl =C<"
+
+  atom_node_def
+    name "=C<"
+    atom_node_def
+      name "=O"
+    end_atom_node_def
+    atom_node_def
+      name "-O"
+    end_atom_node_def
+  end_atom_node_def
+
+end_atom_type_def
+
+
+
+# Carbonyl =C<
+
+atom_type_def
+
+  name "Carbonyl =C<"
+
+  atom_node_def
+    name "=C<"
+    atom_node_def
+      name "=O"
+    end_atom_node_def
+  end_atom_node_def
+
+end_atom_type_def
+
+
+
+# Generic aromatic =C<
+
+atom_type_def
+
+  name "Aromatic =C<"
+
+  atom_node_def
+    name "=C<"
+    aromatic 1
+  end_atom_node_def
+
+end_atom_type_def
+
+
+
+# Generic =C<
+
+atom_type_def
+
+  name "=C<"
+
+  atom_node_def
+    name "=C<"
+  end_atom_node_def
+
+end_atom_type_def
+
+
+
+# Quaternary C
+
+atom_type_def
+
+  name ">C<"
+
+  atom_node_def
+    name ">C<"
+  end_atom_node_def
+
+end_atom_type_def
+
+
+
+# Amidine NH2
+
+atom_type_def
+
+  name "Amidine =NH2"
+
+  atom_node_def
+    name "=N"
+    atom_node_def
+      name "=C<"
+      atom_node_def
+        name "=N"
+      end_atom_node_def
+      atom_node_def
+        name "-N"
+      end_atom_node_def
+    end_atom_node_def
+  end_atom_node_def
+
+  atom_node_def
+    name "=N"
+    atom_node_def
+      name "=C<"
+      atom_node_def
+        name "=N"
+      end_atom_node_def
+      atom_node_def
+        name "=N"
+      end_atom_node_def
+    end_atom_node_def
+  end_atom_node_def
+
+  atom_node_def
+    name "-N"
+    atom_node_def
+      name "=C<"
+      aromatic 0
+      atom_node_def
+        name "=N"
+      end_atom_node_def
+      atom_node_def
+        name "-N"
+      end_atom_node_def
+    end_atom_node_def
+  end_atom_node_def
+
+  atom_node_def
+    name "-N"
+    atom_node_def
+      name "=C<"
+      aromatic 0
+      atom_node_def
+        name "-N"
+      end_atom_node_def
+      atom_node_def
+        name "-N"
+      end_atom_node_def
+    end_atom_node_def
+  end_atom_node_def
+
+  atom_node_def
+    name "-N"
+    atom_node_def
+      name ">C-"
+      planar 1
+      aromatic 0
+      atom_node_def
+        name "-N"
+      end_atom_node_def
+      atom_node_def
+        name "-N"
+      end_atom_node_def
+    end_atom_node_def
+  end_atom_node_def
+
+end_atom_type_def
+
+
+
+# Amide NH2
+
+atom_type_def
+
+  name "Amide -NH2"
+
+  atom_node_def
+    name "-N"
+    atom_node_def
+      name "=C<"
+      atom_node_def
+        name "=O"
+      end_atom_node_def
+    end_atom_node_def
+  end_atom_node_def
+
+end_atom_type_def
+
+
+
+# -CH2-N?
+
+atom_type_def
+
+  name "-CH2-N?"
+
+  atom_node_def
+    name "-N"
+    atom_node_def
+      name ">C"
+    end_atom_node_def
+  end_atom_node_def
+
+end_atom_type_def
+
+
+
+# -N?
+
+atom_type_def
+
+  name "-N?"
+
+  atom_node_def
+    name "-N"
+    atom_node_def
+      element "C"
+      hybridisation 3
+    end_atom_node_def
+  end_atom_node_def
+
+end_atom_type_def
+
+
+
+
+# Planar NH2
+
+atom_type_def
+
+  name "-NH2p"
+
+  atom_node_def
+    name "-N"
+    atom_node_def
+      element "C"
+      aromatic 1
+    end_atom_node_def
+  end_atom_node_def
+
+end_atom_type_def
+
+
+
+# Generic NH2
+
+atom_type_def
+
+  name "-NH2"
+
+  atom_node_def
+    name "-N"
+  end_atom_node_def
+
+end_atom_type_def
+
+
+
+# >NH2(+)
+
+atom_type_def
+
+  name ">NH2"
+
+  atom_node_def
+    name ">N"
+    atom_node_def
+      element "C"
+      hybridisation 3
+    end_atom_node_def
+    atom_node_def
+      element "C"
+      hybridisation 3
+    end_atom_node_def
+  end_atom_node_def
+
+end_atom_type_def
+
+
+
+# Amide >NH
+
+atom_type_def
+
+  name "Amide >NH"
+
+  atom_node_def
+    name ">N"
+    atom_node_def
+      name "=C<"
+      atom_node_def
+        name "=O"
+      end_atom_node_def
+    end_atom_node_def
+    atom_node_def
+      element "C"
+    end_atom_node_def
+  end_atom_node_def
+
+end_atom_type_def
+
+
+
+# Amidine >NH(+)
+
+atom_type_def
+
+  name "Amidine =NH-"
+
+  atom_node_def
+    name ">N"
+    atom_node_def
+      name "=C<"
+      atom_node_def
+        name "-N"
+      end_atom_node_def
+      atom_node_def
+        name "=N"
+      end_atom_node_def
+    end_atom_node_def
+  end_atom_node_def
+
+  atom_node_def
+    name "=N-"
+    atom_node_def
+      name "=C<"
+      atom_node_def
+        name "-N"
+      end_atom_node_def
+      atom_node_def
+        name "-N"
+      end_atom_node_def
+    end_atom_node_def
+  end_atom_node_def
+
+end_atom_type_def
+    
+
+
+# Aromatic >NH
+
+atom_type_def
+
+  name "Aromatic NH"
+
+  atom_node_def
+    name ">N"
+    aromatic 1
+  end_atom_node_def
+
+end_atom_type_def
+
+
+
+# Planar >NH
+
+atom_type_def
+
+  name ">NHp"
+
+  atom_node_def
+    name ">N"
+    atom_node_def
+      element "C"
+      hybridisation 2
+    end_atom_node_def
+  end_atom_node_def
+
+end_atom_type_def
+
+
+
+# Generic >NH
+
+atom_type_def
+
+  name ">NH"
+
+  atom_node_def
+    name ">N"
+  end_atom_node_def
+
+end_atom_type_def
+
+
+
+# >NH-(+)
+
+atom_type_def
+
+  name ">NH-"
+
+  atom_node_def
+    name ">N-"
+    atom_node_def
+      element "C"
+      hybridisation 3
+    end_atom_node_def
+    atom_node_def
+      element "C"
+      hybridisation 3
+    end_atom_node_def
+    atom_node_def
+      element "C"
+      hybridisation 3
+    end_atom_node_def
+  end_atom_node_def
+
+end_atom_type_def
+
+
+
+# Amide >N-
+
+atom_type_def
+
+  name "Amide >N-"
+
+  atom_node_def
+    name ">N-"
+    aromatic 0
+    atom_node_def
+      name "=C<"
+      atom_node_def
+        name "=O"
+      end_atom_node_def
+    end_atom_node_def
+  end_atom_node_def
+
+end_atom_type_def
+
+
+
+# Planar >N-
+
+atom_type_def
+
+  name ">Np-"
+
+  atom_node_def
+    name ">N-"
+    planar 1
+  end_atom_node_def
+
+end_atom_type_def
+
+
+
+# Generic >N-
+
+atom_type_def
+
+  name ">N-"
+
+  atom_node_def
+    name ">N-"
+  end_atom_node_def
+
+end_atom_type_def
+
+
+
+# >N<(+)
+
+atom_type_def
+
+  name ">N<"
+
+  atom_node_def
+    name ">N<"
+    atom_node_def
+      element "C"
+    end_atom_node_def
+    atom_node_def
+      element "C"
+    end_atom_node_def
+    atom_node_def
+      element "C"
+    end_atom_node_def
+    atom_node_def
+      element "C"
+    end_atom_node_def
+  end_atom_node_def
+
+end_atom_type_def
+
+
+
+
+# Generic =NH
+
+atom_type_def
+
+  name "=NH"
+
+  atom_node_def
+    name "=N"
+  end_atom_node_def
+
+end_atom_type_def
+
+
+
+
+# Aromatic =N-
+
+atom_type_def
+
+  name "Aromatic =N-"
+
+  atom_node_def
+    name "=N-"
+    aromatic 1
+  end_atom_node_def
+
+end_atom_type_def
+
+
+
+# Generic =N-
+
+atom_type_def
+
+  name "=N-"
+
+  atom_node_def
+    name "=N-"
+  end_atom_node_def
+
+end_atom_type_def
+
+
+
+# Nitro N
+
+atom_type_def
+
+  name "Nitro N"
+
+  atom_node_def
+    name ">>N-"
+    atom_node_def
+      name "=O"
+    end_atom_node_def
+    atom_node_def
+      name "=O"
+    end_atom_node_def
+  end_atom_node_def
+
+  atom_node_def
+    name "=N<"
+    atom_node_def
+      name "=O"
+    end_atom_node_def
+    atom_node_def
+      name "-O"
+    end_atom_node_def
+  end_atom_node_def
+
+end_atom_type_def
+
+
+
+# Generic =N<(+)
+
+atom_type_def
+
+  name "=N<"
+
+  atom_node_def
+    name "=N<"
+  end_atom_node_def
+
+end_atom_type_def
+
+
+
+# Generic =N=
+
+atom_type_def
+
+  name "=N="
+
+  atom_node_def
+    name "=N="
+  end_atom_node_def
+
+end_atom_type_def
+
+
+
+# Nitrile N
+
+atom_type_def
+
+  name "#N"
+  atom_node_def
+    name "#N"
+  end_atom_node_def
+
+end_atom_type_def
+
+
+
+# Isonitrile N
+
+atom_type_def
+
+  name "#N-"
+
+  atom_node_def
+    name "#N-"
+  end_atom_node_def
+
+end_atom_type_def
+
+
+
+# Water O
+
+atom_type_def
+
+  name "H2O"
+
+  atom_node_def
+    name "O"
+  end_atom_node_def
+
+end_atom_type_def
+
+
+
+# Carboxyl O
+
+atom_type_def
+
+  name "Carboxyl O?"
+
+  atom_node_def
+    name "=O"
+    atom_node_def
+      name "=C<"
+      atom_node_def
+        name "-O"
+      end_atom_node_def
+    end_atom_node_def
+  end_atom_node_def
+
+  atom_node_def
+    name "-O"
+    atom_node_def
+      name "=C<"
+      atom_node_def
+        name "=O"
+      end_atom_node_def
+    end_atom_node_def
+  end_atom_node_def
+
+end_atom_type_def
+
+
+
+# Sulfate/Phosphate =O
+
+atom_type_def
+
+  name "Sulfate/Phosphate =O"
+
+  atom_node_def
+    name "=O"
+    atom_node_def
+      element "S"
+      atom_node_def
+        element "O"
+      end_atom_node_def
+      atom_node_def
+        element "O"
+      end_atom_node_def
+      atom_node_def
+        element "O"
+      end_atom_node_def
+    end_atom_node_def
+  end_atom_node_def
+
+  atom_node_def
+    name "-O"
+    atom_node_def
+      element "S"
+      atom_node_def
+        element "O"
+      end_atom_node_def
+      atom_node_def
+        element "O"
+      end_atom_node_def
+      atom_node_def
+        element "O"
+      end_atom_node_def
+    end_atom_node_def
+  end_atom_node_def
+
+  atom_node_def
+    name "=O"
+    atom_node_def
+      element "P"
+      atom_node_def
+        element "O"
+      end_atom_node_def
+      atom_node_def
+        element "O"
+      end_atom_node_def
+      atom_node_def
+        element "O"
+      end_atom_node_def
+    end_atom_node_def
+  end_atom_node_def
+
+  atom_node_def
+    name "-O"
+    atom_node_def
+      element "P"
+      atom_node_def
+        element "O"
+      end_atom_node_def
+      atom_node_def
+        element "O"
+      end_atom_node_def
+      atom_node_def
+        element "O"
+      end_atom_node_def
+    end_atom_node_def
+  end_atom_node_def
+
+end_atom_type_def
+
+
+
+# Generic [S/P]=O (for single-bond case)
+
+atom_type_def
+
+  name "[S/P]=O"
+
+  atom_node_def
+    name "-O"
+    atom_node_def
+      element "S"
+    end_atom_node_def
+  end_atom_node_def
+
+  atom_node_def
+    name "-O"
+    atom_node_def
+      element "P"
+    end_atom_node_def
+  end_atom_node_def
+
+end_atom_type_def
+
+
+
+# Nitro =O
+
+atom_type_def
+
+  name "Nitro =O"
+
+  atom_node_def
+    name "=O"
+    atom_node_def
+      name ">>N-"
+    end_atom_node_def
+  end_atom_node_def
+
+  atom_node_def
+    name "-O"
+    atom_node_def
+      name "=N<"
+    end_atom_node_def
+  end_atom_node_def
+
+  atom_node_def
+    name "=O"
+    atom_node_def
+      name "=N<"
+    end_atom_node_def
+  end_atom_node_def
+
+end_atom_type_def
+
+
+
+
+# Aliphatic OH
+
+atom_type_def
+
+  name "Aliphatic -OH"
+
+  atom_node_def
+    name "-O"
+    atom_node_def
+      element "C"
+      aromatic 0
+    end_atom_node_def
+  end_atom_node_def
+
+end_atom_type_def
+
+
+
+# Aromatic OH
+
+atom_type_def
+
+  name "Aromatic -OH"
+
+  atom_node_def
+    name "-O"
+    atom_node_def
+      element "C"
+      aromatic 1
+    end_atom_node_def
+  end_atom_node_def
+
+end_atom_type_def
+
+
+
+# Generic OH
+
+atom_type_def
+
+  name "-OH"
+
+  atom_node_def
+    name "-O"
+  end_atom_node_def
+
+end_atom_type_def
+
+
+
+# Primary amide =O
+
+atom_type_def
+
+  name "Primary amide =O"
+
+  atom_node_def
+    name "=O"
+    atom_node_def
+      name "=C<"
+      atom_node_def
+        name "-N"
+      end_atom_node_def
+    end_atom_node_def
+  end_atom_node_def
+
+end_atom_type_def
+
+
+
+# Secondary amide =O
+
+atom_type_def
+
+  name "Secondary amide =O"
+
+  atom_node_def
+    name "=O"
+    atom_node_def
+      name "=C<"
+      atom_node_def
+        name ">N"
+      end_atom_node_def
+    end_atom_node_def
+  end_atom_node_def
+
+end_atom_type_def
+
+
+
+# Tertiary amide =O
+
+atom_type_def
+
+  name "Tertiary amide =O"
+
+  atom_node_def
+    name "=O"
+    atom_node_def
+      name "=C<"
+      atom_node_def
+        name ">N-"
+      end_atom_node_def
+    end_atom_node_def
+  end_atom_node_def
+
+end_atom_type_def
+
+
+
+# Generic [S/P]=O
+
+atom_type_def
+
+  name "[S/P]=O"
+
+  atom_node_def
+    name "=O"
+    atom_node_def
+      element "S"
+    end_atom_node_def
+  end_atom_node_def
+
+  atom_node_def
+    name "=O"
+    atom_node_def
+      element "P"
+    end_atom_node_def
+  end_atom_node_def
+
+end_atom_type_def
+
+
+
+# Aldehyde =O
+
+atom_type_def
+
+  name "Aldehyde =O"
+
+  atom_node_def
+    name "=O"
+    atom_node_def
+      name "=C-"
+    end_atom_node_def
+  end_atom_node_def
+
+end_atom_type_def
+
+
+
+# Ketone =O
+
+atom_type_def
+
+  name "Ketone =O"
+
+  atom_node_def
+    name "=O"
+    atom_node_def
+      name "=C<"
+    end_atom_node_def
+  end_atom_node_def
+
+end_atom_type_def
+
+
+
+# Generic =O
+
+atom_type_def
+
+  name "=O"
+
+  atom_node_def
+    name "=O"
+  end_atom_node_def
+
+end_atom_type_def
+
+
+
+# Aliphatic >O
+
+atom_type_def
+
+  name "Aliphatic >O"
+
+  atom_node_def
+    name ">O"
+    aromatic 0
+    atom_node_def
+      element "C"
+      hybridisation 3
+    end_atom_node_def
+    atom_node_def
+      element "C"
+      hybridisation 3
+    end_atom_node_def
+  end_atom_node_def
+
+end_atom_type_def
+
+
+
+# Aromatic >O
+
+atom_type_def
+
+  name "Aromatic >O"
+
+  atom_node_def
+    name ">O"
+    aromatic 1
+  end_atom_node_def
+
+end_atom_type_def
+
+
+
+# Generic >O
+
+atom_type_def
+
+  name ">O"
+
+  atom_node_def
+    name ">O"
+  end_atom_node_def
+
+end_atom_type_def
+
+
+
+# S (ion)
+
+atom_type_def
+
+  name "Sulfide ion"
+
+  atom_node_def
+    name "S"
+  end_atom_node_def
+
+end_atom_type_def
+
+
+
+# -SH
+
+atom_type_def
+
+  name "-SH"
+
+  atom_node_def
+    name "-S"
+  end_atom_node_def
+
+end_atom_type_def
+
+
+
+# >S
+
+atom_type_def
+
+  name ">S"
+
+  atom_node_def
+    name ">S"
+  end_atom_node_def
+
+end_atom_type_def
+
+
+
+# Quaternary S
+
+atom_type_def
+
+  name "Quaternary S"
+
+  atom_node_def
+    name ">S<"
+  end_atom_node_def
+
+end_atom_type_def
+
+
+
+# Quaternary P
+
+atom_type_def
+
+  name "Quaternary P"
+
+  atom_node_def
+    name ">P<"
+  end_atom_node_def
+
+end_atom_type_def
+
+
+
+# Aliphatic -F
+
+atom_type_def
+
+  name "Aliphatic -F"
+
+  atom_node_def
+    name "-F"
+    atom_node_def
+      element "C"
+      aromatic 0
+    end_atom_node_def
+  end_atom_node_def
+
+end_atom_type_def
+
+
+
+# Aromatic -F
+
+atom_type_def
+
+  name "Aromatic -F"
+
+  atom_node_def
+    name "-F"
+    atom_node_def
+      element "C"
+      aromatic 1
+    end_atom_node_def
+  end_atom_node_def
+
+end_atom_type_def
+
+
+
+# Aliphatic -CL
+
+atom_type_def
+
+  name "Aliphatic -CL"
+
+  atom_node_def
+    name "-CL"
+    atom_node_def
+      element "C"
+      aromatic 0
+    end_atom_node_def
+  end_atom_node_def
+
+end_atom_type_def
+
+
+
+# Aromatic -CL
+
+atom_type_def
+
+  name "Aromatic -CL"
+
+  atom_node_def
+    name "-CL"
+    atom_node_def
+      element "C"
+      aromatic 1
+    end_atom_node_def
+  end_atom_node_def
+
+end_atom_type_def
+
+
+
+# Aliphatic -BR
+
+atom_type_def
+
+  name "Aliphatic -BR"
+
+  atom_node_def
+    name "-BR"
+    atom_node_def
+      element "C"
+      aromatic 0
+    end_atom_node_def
+  end_atom_node_def
+
+end_atom_type_def
+
+
+
+# Aromatic -BR
+
+atom_type_def
+
+  name "Aromatic -BR"
+
+  atom_node_def
+    name "-BR"
+    atom_node_def
+      element "C"
+      aromatic 1
+    end_atom_node_def
+  end_atom_node_def
+
+end_atom_type_def
+
+
+
+# Aliphatic -I
+
+atom_type_def
+
+  name "Aliphatic -I"
+
+  atom_node_def
+    name "-I"
+    atom_node_def
+      element "C"
+      aromatic 0
+    end_atom_node_def
+  end_atom_node_def
+
+end_atom_type_def
+
+
+
+# Aromatic -I
+
+atom_type_def
+
+  name "Aromatic -I"
+
+  atom_node_def
+    name "-I"
+    atom_node_def
+      element "C"
+      aromatic 1
+    end_atom_node_def
+  end_atom_node_def
+
+end_atom_type_def
+
+
+

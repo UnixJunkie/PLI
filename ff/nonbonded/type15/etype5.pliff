@@ -1,0 +1,5 @@
+Type1    6    6   15 "=CH- PHE-CE"
+Type2    5   -1   -1 "B"
+P       2.000000     1.000000   1
+lnP     0.693147     0.500000   1
+Precision STGT

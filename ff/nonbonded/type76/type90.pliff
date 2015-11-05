@@ -1,0 +1,5 @@
+Type1    7   32   76 "=N="
+Type2    8   37   90 "Secondary amide =O"
+P       1.000000     0.500000   1
+lnP     0.000000     0.500000   1
+Precision DUDU

@@ -1,0 +1,5 @@
+Type1    6    7   30 "=C< ARG-CZ"
+Type2   56   -1   -1 "BA"
+P       2.000000     1.000000   1
+lnP     0.693147     0.500000   1
+Precision GTME
