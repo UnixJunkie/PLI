@@ -57,8 +57,7 @@ $PLI_DIR/bin/pli -help
 
 ## Get In Touch ##
 If you have questions about PLI or have found it useful, let us know, on bitbucket or 
-by email:
-{TODO: setup email address}
+by email: "pli-at-astx-dot-com"
 
 ## Licence ##
 Apache 2.0 License, see licence.txt for details. 
