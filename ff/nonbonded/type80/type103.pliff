@@ -1,5 +1,7 @@
 Type1    8   34   80 "Aliphatic -OH"
 Type2   16   44  103 "Quaternary S"
-P       1.000000     0.500000   1
-lnP     0.000000     0.500000   1
-Precision DUDU
+P       0.806314     0.220879   0
+lnP    -0.215282     0.273936   0
+Precision STGT
+Pu       1.000000     0.500000   1
+lnPu     0.000000     0.500000   1

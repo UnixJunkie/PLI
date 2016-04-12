@@ -1,5 +1,7 @@
 Type1   15   45  104 "Quaternary P"
 Type2    9   46  106 "Aromatic -F"
-P       0.500000     0.250000   1
-lnP    -0.693147     0.500000   1
-Precision STGT
+P       1.000000     0.500000   1
+lnP     0.000000     0.500000   1
+Precision DUDU
+Pu       1.000000     0.500000   1
+lnPu     0.000000     0.500000   1

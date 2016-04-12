@@ -2,4 +2,6 @@ Type1   17   47  108 "Aromatic -CL"
 Type2   15   -1   -1 "P"
 P       2.000000     1.000000   1
 lnP     0.693147     0.500000   1
-Precision STAN
+Precision GTAN
+Pu       2.000000     1.000000   1
+lnPu     0.693147     0.500000   1

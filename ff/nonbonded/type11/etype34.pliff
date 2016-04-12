@@ -1,5 +1,7 @@
 Type1    6    6   11 "Aromatic donor CH"
 Type2   34   -1   -1 "SE"
-P       1.000000     0.500000   1
-lnP     0.000000     0.500000   1
-Precision DUDU
+P       2.000000     1.000000   1
+lnP     0.693147     0.500000   1
+Precision STGT
+Pu       2.000000     1.000000   1
+lnPu     0.693147     0.500000   1

@@ -1,5 +1,7 @@
 Type1    8   34   83 "Threonine -OH"
 Type2   16   44  103 "Quaternary S"
-P       0.910089     0.265917   0
-lnP    -0.094213     0.292187   0
-Precision STDA
+P       0.847854     0.221802   0
+lnP    -0.165046     0.261604   0
+Precision STGT
+Pu       0.993981     0.293494   0
+lnPu    -0.006037     0.295271   0
