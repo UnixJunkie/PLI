@@ -5,6 +5,18 @@ interactions. Interacting atoms are defined using a [modified][mcconkey]
 [Voronoi partitioning][voronoi] and interaction propensities (including geometric 
 preferences) have been derived from over 30,000 [PDB][pdb] entries.
 
+Much of the PLI methodology was published recently:
+
+Protein-Ligand-Informatics force field (PLIff): towards a fully knowledge driven “force field” for biomolecular interactions
+
+
+Marcel L Verdonk, R. Frederick Ludlow, Ilenia Giangreco, and Prakash Chandra Rathi
+
+J. Med. Chem., Just Accepted Manuscript
+
+DOI: 10.1021/acs.jmedchem.6b00716
+
+
 ## Features ##
 * Score protein-ligand interactions (for example docking/VS poses)
 * Solvent Mapping
