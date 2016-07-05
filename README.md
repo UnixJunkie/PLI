@@ -7,15 +7,15 @@ preferences) have been derived from over 30,000 [PDB][pdb] entries.
 
 Much of the PLI methodology was published recently:
 
-Protein-Ligand-Informatics force field (PLIff): towards a fully knowledge driven “force field” for biomolecular interactions
+**Protein-Ligand-Informatics force field (PLIff): towards a fully knowledge driven “force field” for biomolecular interactions**
 
+M.L. Verdonk, R.F. Ludlow, I. Giangreco, and P.C. Rathi
 
-Marcel L Verdonk, R. Frederick Ludlow, Ilenia Giangreco, and Prakash Chandra Rathi
+*J. Med. Chem., Just Accepted Manuscript*
 
-J. Med. Chem., Just Accepted Manuscript
+DOI: [10.1021/acs.jmedchem.6b00716][doi]
 
-DOI: 10.1021/acs.jmedchem.6b00716
-
+We are actively developing the PLI code and will release an updated version in July 2016.
 
 ## Features ##
 * Score protein-ligand interactions (for example docking/VS poses)
@@ -84,3 +84,4 @@ Apache 2.0 License, see licence.txt for details.
 [downloads]: https://bitbucket.org/AstexUK/pli/downloads
 [mcconkey]: http://dx.doi.org/10.1093/bioinformatics/18.10.1365
 [lebedev]: https://people.sc.fsu.edu/~jburkardt/c_src/sphere_lebedev_rule/sphere_lebedev_rule.html
+[doi]: http://dx.doi.org/10.1021/acs.jmedchem.6b00716
