@@ -27,13 +27,13 @@ SETTINGS* get_settings(int nargs,char **args) {
 
   SETTINGS *settings;
 
-  // set all parameters from command line and input file(s):
-
-  params_init(nargs,args);
-
   // io setup:
 
   init_io();
+
+  // set all parameters from command line and input file(s):
+
+  params_init(nargs,args);
 
   // allocate memory for settings:
 
@@ -226,47 +226,47 @@ static unsigned int get_output_flags(char *flags) {
     if (!strcmp(flag,"system")) {
 
       oflags |= OUTPUT_SYSTEM;
-      
+
     } else if (!strcmp(flag,"atoms")) {
-      
+
       oflags |= OUTPUT_ATOMS;
-      
+
     } else if (!strcmp(flag,"contacts")) {
-      
+
       oflags |= OUTPUT_CONTACTS;
-      
+
     } else if (!strcmp(flag,"hbonds")) {
-      
+
       oflags |= OUTPUT_HBONDS;
-      
+
     } else if (!strcmp(flag,"clashes")) {
-      
+
       oflags |= OUTPUT_CLASHES;
-      
+
     } else if (!strcmp(flag,"scores")) {
-      
+
       oflags |= OUTPUT_SCORES;
-      
+
     } else if (!strcmp(flag,"pdb")) {
-            
+
       oflags |= OUTPUT_PDB;
-      
+
     } else if (!strcmp(flag,"mol")) {
-            
+
       oflags |= OUTPUT_MOL;
-      
+
     } else if (!strcmp(flag,"axes")) {
-      
+
       oflags |= OUTPUT_AXES;
-      
+
     } else if (!strcmp(flag,"vpts")) {
-      
+
       oflags |= OUTPUT_VPTS;
-   
+
     } else if (!strcmp(flag,"geometries")) {
-      
+
       oflags |= OUTPUT_GEOMETRIES;
-      
+
     } else if (!strcmp(flag,"covalent")) {
 
       oflags |= OUTPUT_COVALENT;
@@ -274,11 +274,11 @@ static unsigned int get_output_flags(char *flags) {
     } else if (!strcmp(flag,"intra")) {
 
       oflags |= OUTPUT_INTRAMOLECULAR;
-      
+
     } else if (!strcmp(flag,"sas_stats")) {
 
       oflags |= OUTPUT_SAS_STATS;
-      
+
     } else if (!strcmp(flag,"ligand")) {
 
       oflags |= OUTPUT_LIGAND;
@@ -289,12 +289,12 @@ static unsigned int get_output_flags(char *flags) {
 
     } else if (!strcmp(flag,"stypes")) {
 
-      oflags |= OUTPUT_STYPES;  
- 
+      oflags |= OUTPUT_STYPES;
+
     } else if (!strcmp(flag,"site_stats")) {
 
-      oflags |= OUTPUT_SITE_STATS;  
- 
+      oflags |= OUTPUT_SITE_STATS;
+
     } else if (strcmp(flag,"none")) {
 
       error_fn("set_output_flags: unknown output option '%s'",flag);
@@ -305,5 +305,3 @@ static unsigned int get_output_flags(char *flags) {
 
   return(oflags);
 }
-
-
