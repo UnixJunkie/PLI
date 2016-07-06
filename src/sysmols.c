@@ -22,7 +22,7 @@ static void init_sysmols(SYSMOLS*);
 static void setup_sysmol(MOLECULE*,char*,unsigned int,SETTINGS*);
 static void fix_symmetry_atoms(MOLECULE*,MOLECULE*);
 static COMPLEX_LIST* sysmols_read_complex_list(char*);
-static sysmols_read_complex_list_molecules(COMPLEX_LIST*,SETTINGS*);
+static void sysmols_read_complex_list_molecules(COMPLEX_LIST*,SETTINGS*);
 
 
 
@@ -107,7 +107,7 @@ SYSMOLS* load_sysmols(SETTINGS *settings) {
 
 
 
-static sysmols_read_complex_list_molecules(COMPLEX_LIST *complex_list,SETTINGS *settings) {
+static void sysmols_read_complex_list_molecules(COMPLEX_LIST *complex_list,SETTINGS *settings) {
 
   int i;
   COMPLEX *complex;
@@ -141,7 +141,7 @@ static COMPLEX_LIST* sysmols_read_complex_list(char *filename) {
 
   if (file == NULL) {
 
-    error_fn("sysmols_read_complex_list: could not open complex list file '%s'",filename); 
+    error_fn("sysmols_read_complex_list: could not open complex list file '%s'",filename);
   }
 
   n_alloc_complexes = 10;
@@ -158,10 +158,10 @@ static COMPLEX_LIST* sysmols_read_complex_list(char *filename) {
   complex = complexes;
 
   while (!end_of_file(file)) {
-	      
+
     if (read_line(line,MAX_LINE_LEN,file) == NULL)
       break;
- 
+
     if (line[0] != '#') {
 
       sysmols_init_complex(complex);
