@@ -7,7 +7,7 @@ preferences) have been derived from over 30,000 [PDB][pdb] entries.
 
 ## Features ##
 * Score protein-ligand interactions (for example docking/VS poses)
-* Solvent Mapping
+* Fragment mapping (PLImap) as described [here][plimap_paper]
 * Generate Interaction Maps for Donor/Acceptor/Lipophile etc.
 * Rich atom-typing 
 
@@ -72,3 +72,4 @@ Apache 2.0 License, see licence.txt for details.
 [downloads]: https://bitbucket.org/AstexUK/pli/downloads
 [mcconkey]: http://dx.doi.org/10.1093/bioinformatics/18.10.1365
 [lebedev]: https://people.sc.fsu.edu/~jburkardt/c_src/sphere_lebedev_rule/sphere_lebedev_rule.html
+[plimap_paper]: http://pubs.acs.org/doi/abs/10.1021/acs.jmedchem.7b00366
