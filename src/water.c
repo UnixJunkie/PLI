@@ -1,4 +1,4 @@
-// Copyright 2015 Astex Therapautics Ltd.
+// Copyright 2015 Astex Therapeutics Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -25,11 +25,11 @@
 
 static int flag_all_waters(SYSTEM*);
 static int flag_loose_waters(SYSTEM*);
+static int flag_non_mediating_waters(SYSTEM*);
 static ATOM* next_loose_water(ATOMLIST*);
 static void add_waters_to_selection(SYSTEM*);
 static void remove_waters_from_selection(SYSTEM*);
 static ATOMLIST* system2waters(SYSTEM*);
-
 
 
 int flag_skipped_waters(SYSTEM *system) {
@@ -51,6 +51,10 @@ int flag_skipped_waters(SYSTEM *system) {
 
     n_flagged = flag_loose_waters(system);
 
+  } else if (!strcmp(settings->keep_waters, "mediating")) {
+
+    n_flagged = flag_non_mediating_waters(system);
+
   } else {
 
     error_fn("flag_skipped_waters: unknown option '%s'",settings->keep_waters);
@@ -59,6 +63,49 @@ int flag_skipped_waters(SYSTEM *system) {
   return(n_flagged);
 }
 
+
+static int flag_non_mediating_waters(SYSTEM *system) {
+  MOLECULE *ligand = system->ligand;
+  MOLECULE *protein = system->protein;
+
+  if (!ligand || !protein) {
+    error_fn("Mediating waters can't be identified without both protein and ligand being specified");
+    return(0);
+  }
+
+  set_contacts_system(system, 0);
+
+  MOLECULE *molecule;
+  ATOM *atom;
+  int n_skip = 0;
+  for (int i=0; i<system->molecule_list->n_molecules; i++) {
+    molecule = system->molecule_list->molecules[i];
+    for (int j=0; j<molecule->natoms; j++) {
+      atom = molecule->atom + j;
+      if (atom->flags & WATER_OXYGEN) {
+        int protein_contact = 0;
+        int ligand_contact = 0;
+        atom->flags |= SKIP_ATOM;
+        n_skip++;
+        for (int k=0; k<atom->contactlist->ncontacts; k++) {
+          if ((atom->contactlist->contacts+k)->atom2->molecule == ligand) {
+            ligand_contact = 1;
+          }
+          if ((atom->contactlist->contacts+k)->atom2->molecule == protein) {
+            protein_contact = 1;
+          }
+          if (protein_contact && ligand_contact) {
+            atom->flags ^= SKIP_ATOM;
+            n_skip--;
+            break;
+          }
+        }
+      }
+    }
+  }
+  reset_system(system, 0);
+  return(n_skip);
+}
 
 
 static int flag_all_waters(SYSTEM *system) {

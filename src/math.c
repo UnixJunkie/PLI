@@ -1,4 +1,4 @@
-// Copyright 2015 Astex Therapautics Ltd.
+// Copyright 2015 Astex Therapeutics Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -27,6 +27,10 @@ static void seed_frand(void);
 static void seed_irand(void);
 
 
+void use_fixed_seed (void) {
+  frand_seeded = 1;
+  irand_seeded = 1;
+}
 
 double frand(void) {
 
@@ -70,6 +74,37 @@ static void seed_frand(void) {
   frand_seeded = 1;
 }
 
+double uniform_rand(double min, double max) {
+  return(min + frand() * (max-min));
+}
+
+int uniform_rand_int(int min, int max){
+  return(irand() % (max + 1 - min) + min);
+}
+
+double normal_rand(double mean, double sd) {
+  double U1, U2, W, multiplier;
+  static double X1, X2;
+  static int call = 0;
+
+  if (call == 1) {
+    call = !call;
+    return (mean + sd * (double) X2);
+  }
+
+  do {
+    U1 = -1 + (frand()) * 2;
+    U2 = -1 + (frand()) * 2;
+    W = pow (U1, 2) + pow (U2, 2);
+  } while (W >= 1 || W == 0);
+
+  multiplier = sqrt((-2 * log (W)) / W);
+  X1 = U1 * multiplier;
+  X2 = U2 * multiplier;
+
+  call = !call;
+  return (mean + sd * (double) X1);
+}
 
 
 static void seed_irand(void) {
@@ -144,13 +179,20 @@ void copy_vector(double *v1,double *v2) {
 
 
 
-void null_vector(double *v) {
+void set_vector(double *v,double x,double y,double z) {
 
-  v[0] = 0.0;
-  v[1] = 0.0;
-  v[2] = 0.0;
+  v[0] = x;
+  v[1] = y;
+  v[2] = z;
 
   v[3] = 1.0;
+}
+
+
+
+void null_vector(double *v) {
+
+  set_vector(v,0.0,0.0,0.0);
 }
 
 
@@ -214,20 +256,21 @@ void calc_crossproduct(double* v1,double* v2,double *v3) {
 }
 
 
+
+
 double vector_angle(double *v1,double *v2) {
-
-  double a;
- 
+  double a, dp;
   a = vector_length(v1)*vector_length(v2);
-
-  if (fabs(a) > 1.0E-6) {
-
-    return((180.0/PI)*acos(dotproduct(v1,v2)/a));
+  if (fabs(a) < 1.0E-6) {
+    return (0.0);
   }
 
-  return(0.0);
+  dp = dotproduct(v1,v2);
+  if (fabs(dp/a + 1.0) < 1.0E-6) {   // dp == -1
+    return(180.0);
+  }
+  return((180.0/PI)*acos(dp/a));
 }
-
 
 
 void scale_vector(double *v,double len) {
@@ -257,6 +300,18 @@ void sum_vector(double *v1,double *v2,double *v3) {
   v3[3] = 1.0;
 }
 
+
+void shift_vector(double *v,double *shift) {
+
+  int i;
+
+  for (i=0;i<3;i++) {
+
+    v[i] = v[i] + shift[i];
+  }
+
+  v[3] = 1.0;
+}
 
 
 void transform_vector(double *v1,double m[4][4]) {
@@ -329,6 +384,29 @@ void unit_matrix(double m[4][4]) {
   }
 }
 
+void scalar_matrix(double value, double m[4][4]) {
+
+  int i,j;
+
+  for (i=0;i<4;i++) {
+
+    for (j=0;j<4;j++) {
+
+      m[i][j] = (i == j) ? value : 0.0;
+    }
+  }
+}
+
+void copy_matrix(double m1[4][4], double m2[4][4]) {
+  int i, j;
+  for (i=0; i<4; i++) {
+    for (j=0; j<4; j++) {
+      m2[i][j] = m1[i][j];
+    }
+  }
+}
+
+
 
 
 void translation_matrix(double *v,double m[4][4]) {
@@ -378,6 +456,7 @@ void euler_matrix(double ax,double ay,double az,double m[4][4]) {
 
 
 void rotation_matrix(double *p1,double *p2,double q,double m[4][4]) {
+  // FIXME: when p1==p2!
 
   double axis[4],a,b,c,u,v,w,u2,v2,w2,uv,uw,vw,sinq,cosq;
 
@@ -439,7 +518,64 @@ void calc_matrix_product(double m1[4][4],double m2[4][4],double m3[4][4]) {
 
 
 
-double torsion_angle(double *v1,double *v2,double *v3,double *v4) {
+double matrix_determinant(double **m,int n) {
+
+  int i,j,k,subi,subj,subn,sign;
+  double **subm,det;
+
+  if (n == 2) {
+
+    return((m[0][0]*m[1][1])-(m[0][1]*m[1][0]));
+  }
+
+  subn = n - 1;
+
+  subm = alloc_2d_fmatrix(subn,subn);
+
+  sign = 1;
+
+  det = 0.0;
+
+  for(k=0;k<n;k++) {
+
+    for (i=1,subi=0;i<n;i++,subi++) {
+
+      for(j=0,subj=0;j<n;j++) {
+
+	if (j != k) {
+
+	  subm[subi][subj] = m[i][j];
+
+	  subj++;
+	}
+      }
+    }
+
+    det += sign*m[0][k]*matrix_determinant(subm,subn);
+
+    sign *= -1;
+  }
+
+  free(subm);
+
+  return(det);
+}
+
+
+
+double three_point_angle(double *v1,double *v2,double *v3) {
+
+  double v21[4],v23[4];
+
+  calc_vector(v2,v1,v21);
+  calc_vector(v2,v3,v23);
+
+  return(vector_angle(v21,v23));
+}
+
+
+
+double dihedral_angle(double *v1,double *v2,double *v3,double *v4) {
 
   int i;
   double v12[4],v23[4],v34[4],vn1[4],vn2[4],vtp[4];
@@ -516,6 +652,26 @@ int solve_line(double x1,double y1,double x2,double y2,double *a,double *b) {
 
 
 
+int line_line_intersection(double a1,double b1,double a2,double b2,double *x,double *y) {
+
+  double da;
+
+  da = a2 - a1;
+
+  if (fabs(da) < 1.0E-30) {
+
+    return(1);
+  }
+
+  *x = (b1-b2)/da;
+
+  *y = a1*(*x) + b1;
+
+  return(0);
+}
+
+
+
 int solve_parabola(double x1,double y1,double x2,double y2,double x3,double y3,double *a,double *b,double *c) {
 
   double denom;
@@ -558,6 +714,27 @@ int calc_parabola_vertex(double x1,double y1,double x2,double y2,double x3,doubl
 
 
 
+int calc_parabola_x_intercepts(double a,double b,double c,double *x1,double *x2) {
+
+  double F,sF;
+
+  F = sqr(b) - 4.0*a*c;
+
+  if (F < 0.0) {
+
+    return(0);
+  }
+
+  sF = sqrt(F);
+
+  *x1 = (-b - sF)/(2.0*a);
+  *x2 = (-b + sF)/(2.0*a);
+
+  return(2);
+}
+
+
+
 long int factorial(int n) {
 
   int i;
@@ -593,4 +770,11 @@ double ramp_function(double x,double x1,double x2,double y1,double y2) {
   }
 
   return(y1 + (x-x1)*((y2-y1)/(x2-x1)));
+}
+
+
+
+double linear_interpolate(double v1, double v2, double d) {
+
+  return (v1*(1.0-d) + v2*d);
 }

@@ -1,4 +1,4 @@
-// Copyright 2015 Astex Therapautics Ltd.
+// Copyright 2015 Astex Therapeutics Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,11 +17,27 @@
 #include "pli.h"
 
 
+#define MIN_SURROGATE_SHIFT_Y 0.10
+#define MIN_AMBIGUOUS_PEAK_DIST 0.30
+#define MIN_AMBIGUOUS_PEAK_RATIO 0.7
+#define WARNING_AMBIGUOUS_PEAK_DIST 0.25
+#define WARNING_AMBIGUOUS_PEAK_RATIO 0.6
+#define MIN_K1 2.0
+#define MIN_K2 1.0
+#define MAX_LR_A 5.0
+#define MIN_K_RATIO 1.0
+#define MAX_K_RATIO 4.0
+#define MAX_REFINE_SHIFT_X 0.2
+#define MAX_REFINE_SHIFT_Y 1.0
+#define REFINE_DX 0.01
+#define REFINE_DY 0.05
+#define DELTA_D_SLOPE 0.75
+
+
 
 static struct FFSettings {
   int use_alpha_potentials;
   int use_beta_potentials;
-  int use_clash_potentials;
   double (*g_r_alpha)(double);
   double (*g_r_beta)(double);
   double (*g_alpha_beta)(double);
@@ -40,25 +56,46 @@ static struct FFSettings {
 
 
 static FORCE_FIELD *pliff_ff = NULL;
-static NONBONDED_FF *methyl_methyl_nonbonded_ff = NULL;
 static NONBONDED_FF *last_read_ff = NULL;
-static n_stored_potentials = 0;
+static int n_stored_potentials = 0;
 
 
 
-static void assign_methyl_methyl_R_potential(NONBONDED_FF*);
+static void set_surrogate_R_potential(NONBONDED_FF*);
+static void copy_R_potential_params(NONBONDED_FF*,NONBONDED_FF*,double);
+static NONBONDED_FF* get_surrogate_nbff(NONBONDED_FF*);
 static void reset_nonbonded_ff(NONBONDED_FF*);
 static NONBONDED_FF* get_least_used_nonbonded_ff(FORCE_FIELD*);
 static HISTOGRAM* process_atom_ff_histogram(HISTOGRAM*,ATOM_FF*);
 static void process_atom_ff_histogram_old(HISTOGRAM*,ATOM_FF*);
 static void process_nonbonded_ff_histogram(HISTOGRAM*,NONBONDED_FF*);
-static void process_R_potential(HISTOGRAM*,NONBONDED_FF*);
-static double derive_vdw_distance(NONBONDED_FF*);
+
+static int process_R_potential(NONBONDED_FF*);
+static void init_R_potential(NONBONDED_FF*);
+static void finish_R_potential(NONBONDED_FF*);
+static int smoothe_R_potential(NONBONDED_FF*);
+static int fit_R_potential(NONBONDED_FF*);
+
+static void apply_R_potential_softness(NONBONDED_FF*);
+static void calc_R_potential_fit_quality(HISTOGRAM*,NONBONDED_FF*);
+static void normalise_R_histogram(HISTOGRAM*,NONBONDED_FF*);
+static double calc_fitted_R_potential(double,NONBONDED_FF*);
+
+static int fit_R_potential_full(HISTOGRAM*,NONBONDED_FF*);
+static int get_R_optimum_from_points(HISTOGRAM*,NONBONDED_FF*);
+static int refine_R_optimum(HISTOGRAM*,NONBONDED_FF*);
+static int fit_short_range_potential(HISTOGRAM*,NONBONDED_FF*);
+static int fit_long_range_potential(HISTOGRAM*,NONBONDED_FF*);
+static double calc_short_range_k(HISTOGRAM*,double,double);
+
+static void recalc_R_histogram_errors(HISTOGRAM*);
 static double calc_2d_correction(int,double (*g)(double));
 static void apply_2d_correction(int,double);
+
 static void read_atom_ff(ATOM_FF*);
-static void read_nonbonded_ff(NONBONDED_FF*);
+static int read_nonbonded_ff(NONBONDED_FF*);
 static void copy_nonbonded_ff(NONBONDED_FF*,NONBONDED_FF*);
+static void init_ami_ff(FORCE_FIELD*);
 static void init_atom_ff_list(ATOM_FF*,ATOM_TYPING_SCHEME*,FORCE_FIELD*);
 static void init_nonbonded_ff_matrix(NONBONDED_FF**,ATOM_TYPING_SCHEME*,FORCE_FIELD*);
 static void init_atom_ff(ATOM_FF*,ATOM_TYPE*,FORCE_FIELD*);
@@ -96,7 +133,6 @@ void init_ff_settings(void) {
 
   ff_settings->use_alpha_potentials = (params_get_parameter("use_alpha_potentials"))->value.i;
   ff_settings->use_beta_potentials = (params_get_parameter("use_beta_potentials"))->value.i;
-  ff_settings->use_clash_potentials = (params_get_parameter("use_clash_potentials"))->value.i;
 
   // pointers to correction functions:
 
@@ -167,7 +203,6 @@ void init_ff_settings(void) {
 
 void init_ff(SETTINGS *settings) {
 
-  ATOM_TYPE *methyl;
   ATOM_TYPING_SCHEME *scheme;
   FORCE_FIELD *ff;
   HISTOGRAM *histogram;
@@ -190,20 +225,9 @@ void init_ff(SETTINGS *settings) {
 
   pliff_ff = ff;
 
-  // pre-load methyl-methyl nonbonded_ff for cases where the R distribution isnt known:
+  // load ami propensities:
 
-  methyl = get_atom_type("-CH3",settings->atom_typing_scheme);
-
-  methyl_methyl_nonbonded_ff = get_nonbonded_ff(ff->nonbonded,methyl,methyl);
-
-  if ((methyl_methyl_nonbonded_ff == NULL) || (methyl_methyl_nonbonded_ff->R_histogram_id == -1)) {
-
-    error_fn("init_ff: methyl-methyl R distribution undefined");
-  }
-
-  histogram = get_histogram(methyl_methyl_nonbonded_ff->R_histogram_id);
-
-  histogram->protected = 1;
+  init_ami_ff(ff);
 }
 
 
@@ -231,7 +255,7 @@ ATOM_FF* get_atom_ff(ATOM_FF *atom_ff_list,ATOM_TYPE *type) {
 
 NONBONDED_FF* get_nonbonded_ff(NONBONDED_FF **nonbonded_ff_matrix,ATOM_TYPE *type1,ATOM_TYPE *type2) {
 
-  NONBONDED_FF *nonbonded_ff,*paired_ff;
+  NONBONDED_FF *nonbonded_ff,*paired_ff,*surr_ff;
 
   if ((type1 == NULL) || (type2 == NULL)) {
 
@@ -243,7 +267,14 @@ NONBONDED_FF* get_nonbonded_ff(NONBONDED_FF **nonbonded_ff_matrix,ATOM_TYPE *typ
 
   if (nonbonded_ff->ready == 0) {
 
-    read_nonbonded_ff(nonbonded_ff);
+    if (read_nonbonded_ff(nonbonded_ff)) {
+
+      surr_ff = get_surrogate_nbff(nonbonded_ff);
+
+      copy_nonbonded_ff(surr_ff,nonbonded_ff);
+
+      nonbonded_ff->surrogate = 3;
+    }
 
     if (paired_ff) {
 
@@ -332,16 +363,18 @@ static void read_atom_ff(ATOM_FF *atom_ff) {
 
 
 
-static void read_nonbonded_ff(NONBONDED_FF *nonbonded_ff) {
+static int read_nonbonded_ff(NONBONDED_FF *nonbonded_ff) {
 
-  int i,i1,i2,flag,id;
+  int i,i1,i2,flag,id,use_ami_pts;
   char *pli_dir,name1[10],name2[10],filename[1000],line[MAX_LINE_LEN],word[MAX_LINE_LEN];
   double f_r_alpha,f_r_beta,f_alpha1_beta,f_alpha2_beta;
   ATOM_TYPE *type1,*type2;
-  HISTOGRAM *histogram,*methyl_methyl_R_hist;
+  HISTOGRAM *histogram;
   HISTOGRAM_POINT *point;
   NONBONDED_FF *nb_ff;
   PLI_FILE *file;
+
+  use_ami_pts = (params_get_parameter("ff_use_ami_pts"))->value.i;
 
   // release some memory if needed:
 
@@ -367,12 +400,13 @@ static void read_nonbonded_ff(NONBONDED_FF *nonbonded_ff) {
   (type2->id == -1) ? sprintf(name2,"etype%d",type2->element->id) : sprintf(name2,"type%d",type2->id);
 
   (i1 < i2) ? sprintf(filename,"%s/ff/nonbonded/%s/%s.pliff",pli_dir,name1,name2) : sprintf(filename,"%s/ff/nonbonded/%s/%s.pliff",pli_dir,name2,name1);
-
   file = open_file(filename,"r");
 
   if (file == NULL) {
 
-    error_fn("read_nonbonded_ff: failed to open ff file '%s'",filename);
+    warning_fn("%s: Using surrogate file as %s could not be opened", __func__,filename);
+
+    return(1);
   }
 
   while (!end_of_file(file)) {
@@ -384,11 +418,19 @@ static void read_nonbonded_ff(NONBONDED_FF *nonbonded_ff) {
 
     if (flag != EOF) {
 
-      if (!strcmp(word,"P")) {
+      if ((!use_ami_pts) && (!strcmp(word,"P"))) {
 
 	sscanf(line,"%*s %lf %lf",&(nonbonded_ff->P),&(nonbonded_ff->sP));
 
-      } else if (!strcmp(word,"lnP")) {
+      } else if ((use_ami_pts) && (!strcmp(word,"Pu"))) {
+
+	sscanf(line,"%*s %lf %lf",&(nonbonded_ff->P),&(nonbonded_ff->sP));
+
+      } else if ((!use_ami_pts) && (!strcmp(word,"lnP"))) {
+
+	sscanf(line,"%*s %lf %lf",&(nonbonded_ff->lnP),&(nonbonded_ff->slnP));
+
+      } else if ((use_ami_pts) && (!strcmp(word,"lnPu"))) {
 
 	sscanf(line,"%*s %lf %lf",&(nonbonded_ff->lnP),&(nonbonded_ff->slnP));
 
@@ -401,8 +443,6 @@ static void read_nonbonded_ff(NONBONDED_FF *nonbonded_ff) {
 	histogram = read_histogram(file,line);
 
 	if (!strcmp(histogram->name,"R")) {
-
-	  histogram->max_peaks = 1;
 
 	  nonbonded_ff->R_histogram_id = histogram->id;
 
@@ -419,6 +459,8 @@ static void read_nonbonded_ff(NONBONDED_FF *nonbonded_ff) {
 	    nonbonded_ff->ALPHA2_histogram_id = histogram->id;
 	  }
 
+	  process_nonbonded_ff_histogram(histogram,nonbonded_ff);
+
 	} else if ((!strcmp(histogram->name,"BETA1")) && (ff_settings->use_beta_potentials)) {
 
 	  histogram->max_peaks = 2;
@@ -431,6 +473,8 @@ static void read_nonbonded_ff(NONBONDED_FF *nonbonded_ff) {
 
 	    nonbonded_ff->BETA2_histogram_id = histogram->id;
 	  }
+
+	  process_nonbonded_ff_histogram(histogram,nonbonded_ff);
 
 	} else if ((!strcmp(histogram->name,"ALPHA2")) && (ff_settings->use_alpha_potentials)) {
 
@@ -445,6 +489,8 @@ static void read_nonbonded_ff(NONBONDED_FF *nonbonded_ff) {
 	    nonbonded_ff->ALPHA1_histogram_id = histogram->id;
 	  }
 
+	  process_nonbonded_ff_histogram(histogram,nonbonded_ff);
+
 	} else if ((!strcmp(histogram->name,"BETA2")) && (ff_settings->use_beta_potentials)) {
 
 	  histogram->max_peaks = 2;
@@ -457,14 +503,21 @@ static void read_nonbonded_ff(NONBONDED_FF *nonbonded_ff) {
 
 	    nonbonded_ff->BETA1_histogram_id = histogram->id;
 	  }
-	}
 
-	process_nonbonded_ff_histogram(histogram,nonbonded_ff);
+	  process_nonbonded_ff_histogram(histogram,nonbonded_ff);
+	}
       }
     }
   }
-  
+
   close_file(file);
+  
+  if (nonbonded_ff->P < -0.5) {
+
+    error_fn("read_nonbonded_ff: type propensity could not be read from %s",filename);
+  }
+
+  process_R_potential(nonbonded_ff);
 
   f_r_alpha = calc_2d_correction(nonbonded_ff->R_histogram_id,ff_settings->g_r_alpha);
   f_r_beta = calc_2d_correction(nonbonded_ff->R_histogram_id,ff_settings->g_r_beta);
@@ -478,18 +531,13 @@ static void read_nonbonded_ff(NONBONDED_FF *nonbonded_ff) {
   apply_2d_correction(nonbonded_ff->BETA1_histogram_id,f_r_beta*f_alpha1_beta);
   apply_2d_correction(nonbonded_ff->BETA2_histogram_id,f_r_beta*f_alpha2_beta);
 
-  if (nonbonded_ff->R_histogram_id == -1) {
-
-    // no distance histogram found - use methyl-methyl one instead:
-
-    assign_methyl_methyl_R_potential(nonbonded_ff);
-  }
-
   nonbonded_ff->ready = 1;
 
   last_read_ff = nonbonded_ff;
 
   n_stored_potentials++;
+
+  return(0);
 }
 
 
@@ -501,31 +549,40 @@ void copy_nonbonded_ff(NONBONDED_FF *nonbonded_ff1,NONBONDED_FF *nonbonded_ff2) 
     return;
   }
 
-  if ((nonbonded_ff1->type1 != nonbonded_ff2->type2) || (nonbonded_ff1->type2 != nonbonded_ff2->type1)) {
-
-    error_fn("copy_nonbonded_ff: atom types are not matched");
-  }
-
+  nonbonded_ff2->surrogate = nonbonded_ff1->surrogate;
   nonbonded_ff2->ready = 1;
+
   nonbonded_ff2->P = nonbonded_ff1->P;
   nonbonded_ff2->sP = nonbonded_ff1->sP;
   nonbonded_ff2->lnP = nonbonded_ff1->lnP;
   nonbonded_ff2->slnP = nonbonded_ff1->slnP;
 
+  nonbonded_ff2->Dvdw = nonbonded_ff1->Dvdw;
+
   nonbonded_ff2->Do = nonbonded_ff1->Do;
+  nonbonded_ff2->Eo = nonbonded_ff1->Eo;
+
   nonbonded_ff2->Dc = nonbonded_ff1->Dc;
 
-  nonbonded_ff2->use_clash_potential = nonbonded_ff1->use_clash_potential;
+  nonbonded_ff2->k1 = nonbonded_ff1->k1;
+  nonbonded_ff2->k2 = nonbonded_ff1->k2;
 
-  nonbonded_ff2->LJ_A = nonbonded_ff1->LJ_A;
-  nonbonded_ff2->LJ_B = nonbonded_ff1->LJ_B;
+  nonbonded_ff2->LJ_n = nonbonded_ff1->LJ_n;
+
+  nonbonded_ff2->LR_A = nonbonded_ff1->LR_A;
+  nonbonded_ff2->LR_B = nonbonded_ff1->LR_B;
+  nonbonded_ff2->LR_D = nonbonded_ff1->LR_D;
+
+  nonbonded_ff2->opt_Z = nonbonded_ff1->opt_Z;
+  nonbonded_ff2->opt_sY = nonbonded_ff1->opt_sY;
 
   nonbonded_ff2->R_histogram_id = nonbonded_ff1->R_histogram_id;
   nonbonded_ff2->ALPHA1_histogram_id = nonbonded_ff1->ALPHA2_histogram_id;
   nonbonded_ff2->BETA1_histogram_id = nonbonded_ff1->BETA2_histogram_id;
   nonbonded_ff2->ALPHA2_histogram_id = nonbonded_ff1->ALPHA1_histogram_id;
   nonbonded_ff2->BETA2_histogram_id = nonbonded_ff1->BETA1_histogram_id;
-  nonbonded_ff2->force_field = nonbonded_ff2->force_field;
+
+  nonbonded_ff2->force_field = nonbonded_ff1->force_field;
 }
 
 
@@ -620,15 +677,122 @@ double alpha_beta_correction(double alpha) {
 
 
 
-static void assign_methyl_methyl_R_potential(NONBONDED_FF *nonbonded_ff) {
+static void set_surrogate_R_potential(NONBONDED_FF *nbff) {
 
-  HISTOGRAM *histogram;
+  int i;
+  HISTOGRAM *histogram,*shistogram;
+  HISTOGRAM_POINT *point;
+  NONBONDED_FF *snbff;
 
-  nonbonded_ff->R_histogram_id = methyl_methyl_nonbonded_ff->R_histogram_id;
+  snbff = get_surrogate_nbff(nbff);
 
-  histogram = get_histogram(nonbonded_ff->R_histogram_id);
+  copy_R_potential_params(nbff,snbff,DELTA_D_SLOPE*(nbff->Dvdw - snbff->Dvdw));
 
-  process_R_potential(histogram,nonbonded_ff);
+  // sort out histogram:
+
+  if (nbff->surrogate == 1) {
+
+    // histogram was present, but looked dodgy for some reason:
+
+    warning_fn("%s: replacing R potential for %s (%d) - %s (%d) with surrogate potential",__func__,
+	       nbff->type1->name,nbff->type1->id,nbff->type2->name,nbff->type2->id);
+
+    histogram = get_histogram(nbff->R_histogram_id);
+
+    for (i=0,point=histogram->points;i<histogram->n_points;i++,point++) {
+
+      point->Y = calc_fitted_R_potential(point->X + nbff->Dvdw,nbff);
+    }
+
+  } else if (nbff->surrogate == 2) {
+
+    // no histogram at all, take a copy of the surrogate histogram:
+
+    warning_fn("%s: no R potential found for %s (%d) - %s (%d) using surrogate potential",__func__,
+	       nbff->type1->name,nbff->type1->id,nbff->type2->name,nbff->type2->id);
+
+    shistogram = get_histogram(snbff->R_histogram_id);
+
+    histogram = clone_histogram(shistogram,1);
+
+    nbff->R_histogram_id = histogram->id;
+
+  } else {
+
+    error_fn("%s: unknown surrogate type (%d)",__func__,nbff->surrogate);
+  }
+}
+
+
+
+static void copy_R_potential_params(NONBONDED_FF *nbff1,NONBONDED_FF *nbff2,double dD) {
+
+  // copy some params directly:
+
+  strcpy(nbff1->shape,nbff2->shape);
+
+  nbff1->Po = nbff2->Po;
+  nbff1->Eo = nbff2->Eo;
+
+  nbff1->k1 = nbff2->k1;
+  nbff1->k2 = nbff2->k2;
+
+  nbff1->LJ_n = nbff2->LJ_n;
+
+  nbff1->LR_A = nbff2->LR_A;
+  nbff1->LR_B = nbff2->LR_B;
+  nbff1->LR_n = nbff2->LR_n;
+
+  // adjust other parameters according to the respective vdw radii:
+
+  nbff1->Do = nbff2->Do + dD;
+  nbff1->Dc = (nbff1->Do)/(pow(2,1.0/nbff1->LJ_n));
+
+  nbff1->LR_D = nbff2->LR_D + dD;
+}
+
+
+
+static NONBONDED_FF* get_surrogate_nbff(NONBONDED_FF *nbff) {
+
+  SETTINGS *settings;
+  FORCE_FIELD *ff;
+  unsigned int flags1,flags2;
+  ATOM_TYPE *type1,*type2;
+  NONBONDED_FF *snbff;
+
+  settings = get_settings();
+  ff = settings->force_field;
+
+  flags1 = nbff->type1->flags;
+  flags2 = nbff->type2->flags;
+
+  if (hbond_flags_match(flags1,flags2,0)) {
+
+    type1 = get_atom_type("Amide >NH",settings->atom_typing_scheme);
+    type2 = get_atom_type("Threonine -OH",settings->atom_typing_scheme);
+
+  } else if ((flags1 & HBOND_ACCEPTOR_ATOM_TYPE) && (flags2 & HBOND_ACCEPTOR_ATOM_TYPE)) {
+
+    type1 = type2 = get_atom_type("=O",settings->atom_typing_scheme);
+
+  } else if ((flags1 & HBOND_DONOR_ATOM_TYPE) && (flags2 & HBOND_DONOR_ATOM_TYPE)) {
+
+    type1 = type2 = get_atom_type("=NH-",settings->atom_typing_scheme);
+
+  } else {
+
+    type1 = type2 = get_atom_type("-CH3",settings->atom_typing_scheme);
+  }
+
+  snbff = get_nonbonded_ff(ff->nonbonded,type1,type2);
+
+  if ((snbff == NULL) || (snbff->R_histogram_id == -1)) {
+
+    error_fn("%s: surrogate R distribution undefined",__func__);
+  }
+
+  return(snbff);
 }
 
 
@@ -849,31 +1013,31 @@ static void process_nonbonded_ff_histogram(HISTOGRAM *histogram,NONBONDED_FF *no
   if (nonbonded_ff->R_histogram_id == histogram->id) {
 
     histogram->limits = geom1->r_limits;
-    histogram->sharpen = 1;
+
+    if ((params_get_parameter("pliff_r_correction"))->value.i) {
+
+      histogram->geometric_correction = PLIFF_R_CORRECTION;
+    }
 
   } else if (nonbonded_ff->ALPHA1_histogram_id == histogram->id) {
 
     histogram->limits = geom1->alpha_limits;
 
     histogram->geometric_correction = CONICAL_CORRECTION;
-    histogram->sharpen = 1;
 
   } else if (nonbonded_ff->BETA1_histogram_id == histogram->id) {
 
     histogram->limits = geom1->beta_limits;
-    histogram->sharpen = 1;
 
   } else if (nonbonded_ff->ALPHA2_histogram_id == histogram->id) {
 
     histogram->limits = geom2->alpha_limits;
-    histogram->sharpen = 1;
 
     histogram->geometric_correction = CONICAL_CORRECTION;
 
   } else if (nonbonded_ff->BETA2_histogram_id == histogram->id) {
 
     histogram->limits = geom2->beta_limits;
-    histogram->sharpen = 1;
   }
 
   histogram->extrapolation_method = EXTRAPOLATE_TO_SMALLEST;
@@ -882,28 +1046,103 @@ static void process_nonbonded_ff_histogram(HISTOGRAM *histogram,NONBONDED_FF *no
 
   process_histogram(histogram);
 
-  if (nonbonded_ff->R_histogram_id == histogram->id) {
-
-    process_R_potential(histogram,nonbonded_ff);
-  }
-
   set_histogram_extrema(histogram);
 }
 
 
 
-static void process_R_potential(HISTOGRAM *histogram,NONBONDED_FF *nonbonded_ff) {
+static int process_R_potential(NONBONDED_FF *nbff) {
+
+  char *style;
+
+  if (nbff->R_histogram_id != -1) {
+
+    init_R_potential(nbff);
+
+    style = (params_get_parameter("pliff_potentials"))->value.s;
+
+    if (!strcmp(style,"smoothed")) {
+      
+      if (smoothe_R_potential(nbff)) {
+
+	nbff->surrogate = 1;
+      }
+
+    } else {
+            
+      if (fit_R_potential(nbff)) {
+	
+	nbff->surrogate = 1;
+      }
+    }
+
+  } else {
+
+    nbff->surrogate = 2;
+  }
+
+  if (nbff->surrogate) {
+
+    set_surrogate_R_potential(nbff);
+  }
+
+  finish_R_potential(nbff);
+
+  return(0);
+}
+
+
+
+static void init_R_potential(NONBONDED_FF *nbff) {
+
+  HISTOGRAM *histogram;
+  ATOM_GEOMETRY *geom1;
+
+  histogram = get_histogram(nbff->R_histogram_id);
+  
+  geom1 = nbff->type1->geometry;
+  
+  histogram->extrapolation_method = EXTRAPOLATE_TO_SMALLEST;
+  histogram->normalisation_method = RELATIVE_NORMALISATION;
+  histogram->log_scale = 1;
+  histogram->limits = geom1->r_limits;
+  histogram->max_peaks = 1;
+  
+  if ((params_get_parameter("pliff_r_correction"))->value.i) {
+    
+    histogram->geometric_correction = PLIFF_R_CORRECTION;
+  }
+}
+
+
+
+static void finish_R_potential(NONBONDED_FF *nbff) {
+
+  HISTOGRAM *histogram;
+
+  histogram = get_histogram(nbff->R_histogram_id);
+
+  set_histogram_extrema(histogram);
+
+  calc_R_potential_fit_quality(histogram,nbff);
+}
+
+
+
+static int smoothe_R_potential(NONBONDED_FF *nbff) {
 
   int i,j,flag;
-  double D,slope,intercept,Dc,Xo,Yo,a,b;
+  double D,slope,intercept,Xo,Yo;
   ATOM_TYPE *type1,*type2;
+  HISTOGRAM *histogram;
   HISTOGRAM_POINT *point,*point1,*point2,*point3;
 
-  type1 = nonbonded_ff->type1;
-  type2 = nonbonded_ff->type2;
+  histogram = get_histogram(nbff->R_histogram_id);
 
-  D = get_atom_type_vdw_radius(type1) + get_atom_type_vdw_radius(type2);
+  // old style smoothing:
 
+  process_histogram(histogram);
+  
   // find two points to calculate clash distance from:
 
   i = 0;
@@ -911,7 +1150,7 @@ static void process_R_potential(HISTOGRAM *histogram,NONBONDED_FF *nonbonded_ff)
 
   if (point1->Y > 0.0) {
 
-    warning_fn("process_R_potential: potential starts positive for %s - %s",type1->name,type2->name);
+    warning_fn("%s: potential starts positive for %s - %s",__func__,nbff->type1->name,nbff->type2->name);
 
     point2 = point1 + 1;
 
@@ -928,7 +1167,7 @@ static void process_R_potential(HISTOGRAM *histogram,NONBONDED_FF *nonbonded_ff)
 
     if (i == histogram->n_points) {
 
-      error_fn("process_R_potential: corrupt potential (1)");
+      error_fn("%s: corrupt potential (1)",__func__);
     }
   
     point1 = point2 - 1;
@@ -940,24 +1179,10 @@ static void process_R_potential(HISTOGRAM *histogram,NONBONDED_FF *nonbonded_ff)
 
   if ((flag) || (slope < 0.0)) {
 
-    error_fn("process_R_potential: corrupt potential (2)");
+    error_fn("%s: corrupt potential (2)",__func__);
   }
 
-  Dc = (fabs(slope) < 1.0E-30) ? D : D - (intercept/slope);
-
-  // fit LJ potential to clash distance and slope:
-
-  b = -(slope*pow(Dc,7))/6;
-
-  a = b*pow(Dc,6);
-
-  if (nonbonded_ff->use_clash_potential) {
-
-    for (j=0,point=histogram->points;j<i;j++,point++) {
-
-      point->Y = lennard_jones_energy(point->X + D,a,b);
-    }
-  }
+  nbff->Dc = (fabs(slope) < 1.0E-30) ? nbff->Dvdw : nbff->Dvdw - (intercept/slope);
 
   // now find three points around the optimum:
 
@@ -974,7 +1199,7 @@ static void process_R_potential(HISTOGRAM *histogram,NONBONDED_FF *nonbonded_ff)
 
   if (i == histogram->n_points) {
 
-    error_fn("process_R_potential: corrupt potential (3)");
+    error_fn("%s: corrupt potential (3)",__func__);
   }
 
   point1 = point2 - 1;
@@ -985,14 +1210,796 @@ static void process_R_potential(HISTOGRAM *histogram,NONBONDED_FF *nonbonded_ff)
 
   if (flag) {
 
-    error_fn("read_nonbonded_ff: unable to derive optimum distance from R histogram");
+    error_fn("%s: unable to derive optimum distance from R histogram",__func__);
   }
 
-  nonbonded_ff->Dc = Dc;
-  nonbonded_ff->Do = D + Xo;
+  nbff->Do = nbff->Dvdw + Xo;
+  nbff->Eo = Yo;
+  nbff->Po = exp(Yo);
 
-  nonbonded_ff->LJ_A = a;
-  nonbonded_ff->LJ_B = b;
+  nbff->LJ_n = log(2.0)/log(nbff->Do/nbff->Dc);
+
+  if ((params_get_parameter("pliff_lj_clash"))->value.i) {
+
+    for (j=0,point=histogram->points;j<i;j++,point++) {
+
+      if (point->X + nbff->Dvdw < nbff->Dc) {
+
+	point->Y = -lennard_jones_energy(point->X + nbff->Dvdw,nbff->Do,nbff->Eo,nbff->LJ_n);
+      }
+    }
+  }
+
+  return(0);
+}
+
+
+
+static void calc_R_potential_fit_quality(HISTOGRAM *histogram,NONBONDED_FF *nbff) {
+
+  int i,n1,n2;
+  double D,y1[1000],sy1[1000],yfit1[100],y2[1000],sy2[1000],yfit2[1000];
+  HISTOGRAM_POINT *point;
+
+  n1 = n2 = 0;
+
+  for (i=0,point=histogram->points;i<histogram->n_points;i++,point++) {
+
+    D = point->X + nbff->Dvdw;
+
+    if ((D > nbff->Dc) && (D < nbff->LR_D)) {
+
+      y1[n1] = point->Yraw;
+      sy1[n1] = point->sYraw;
+      yfit1[n1++] = exp(point->Y);
+
+    } else if (D > nbff->LR_D) {
+
+      y2[n2] = point->Yraw;
+      sy2[n2] = point->sYraw;
+      yfit2[n2++] = exp(point->Y);
+    }
+  }
+
+  nbff->Z1 = normalised_fit_error(y1,yfit1,sy1,n1);
+  nbff->Z2 = normalised_fit_error(y2,yfit2,sy2,n2);
+
+  nbff->sY1 = weighted_fit_error(y1,yfit1,sy1,n1);
+  nbff->sY2 = weighted_fit_error(y2,yfit2,sy2,n2);
+}
+
+
+
+static void normalise_R_histogram(HISTOGRAM *histogram,NONBONDED_FF *nonbonded_ff) {
+
+  int i,n,pliff_r_correction;
+  double stepX,intY,intF,C,F,D,Dmax;
+  HISTOGRAM_POINT *point;
+
+  Dmax = nonbonded_ff->Dvdw + 2.0*((get_atom_type("H2O",(get_settings())->atom_typing_scheme))->united_atom->vdw_radius);
+
+  intY = 0.0;
+  intF = 0.0;
+
+  pliff_r_correction = ((params_get_parameter("pliff_r_correction"))->value.i) ? 1 : 0;
+
+  stepX = histogram->stepX;
+
+  n = 0;
+
+  for (i=0,point=histogram->points;i<histogram->n_points;i++,point++) {
+
+    D = point->X + nonbonded_ff->Dvdw;
+
+    if (D < Dmax) {
+
+      if ((histogram->limits == NULL) || ((point->X > histogram->limits[0]) && (point->X < histogram->limits[1]))) {
+
+	intY += (point->Y)*stepX;
+	
+	intF += (pliff_r_correction) ? ((sqr(D) - (pow(D,3.0)/Dmax))*stepX) : stepX;
+      }
+
+      n++;
+    }
+  }
+
+  histogram->n_points = n;
+
+  if (intF < 1.0E-10) {
+
+    error_fn("normalise_histogram: intF (nearly) zero (%8e) for histogram %s",intF,histogram->name);
+  }
+
+  C = (histogram->normalisation_method == RELATIVE_NORMALISATION) ? (intF/intY) : (1.0/intY);
+
+  for (i=0,point=histogram->points;i<histogram->n_points;i++,point++) {
+
+    D = point->X + nonbonded_ff->Dvdw;
+
+    F = (pliff_r_correction) ? (sqr(D) - (pow(D,3.0)/Dmax)) : 1.0;
+
+    point->Y *= (C/F);
+    point->sY *= (C/F);
+
+    point->Yraw *= (C/F);
+    point->sYraw *= (C/F);
+  }
+}
+
+
+
+static int fit_R_potential(NONBONDED_FF *nbff) {
+
+  int i;
+  double D;
+  char *style;
+  HISTOGRAM *histogram;
+  HISTOGRAM_POINT *point;
+
+  histogram = get_histogram(nbff->R_histogram_id);
+
+  // re-calculate error estimates:
+
+  recalc_R_histogram_errors(histogram);
+
+  // normalise and log histogram:
+
+  normalise_R_histogram(histogram,nbff);
+
+  // generate rough initial fit for entire potential:
+
+  if (fit_R_potential_full(histogram,nbff)) {
+
+    warning_fn("%s: unable to fit full R potential for %s (%d) - %s (%d)",__func__,
+	       nbff->type1->name,nbff->type1->id,
+	       nbff->type2->name,nbff->type2->id);
+
+    return(1);
+  }
+
+  // refine the position and height of the peak:
+
+  refine_R_optimum(histogram,nbff);
+
+  // fit short-range potential:
+
+  fit_short_range_potential(histogram,nbff);
+
+  // fit long-range potential:
+
+  if (fit_long_range_potential(histogram,nbff)) {
+
+    warning_fn("%s: unable to fit long-range R potential for %s (%d) - %s (%d)",__func__,
+	       nbff->type1->name,nbff->type1->id,
+	       nbff->type2->name,nbff->type2->id);
+
+    return(1);
+  }
+
+  apply_R_potential_softness(nbff);
+
+  // calculate potential:
+
+  style = (params_get_parameter("pliff_potentials"))->value.s;
+
+  for (i=0,point=histogram->points;i<histogram->n_points;i++,point++) {
+    
+    D = point->X + nbff->Dvdw;
+    
+    if (!strcmp(style,"LJ")) {
+
+      if (D < nbff->Do) {
+
+	point->Y = -lennard_jones_energy(D,nbff->Do,nbff->Eo,nbff->LJ_n);
+
+      } else {
+
+	point->Y = -lennard_jones_energy(D,nbff->Do,nbff->Eo,nbff->LR_n);
+      }
+
+    } else if (!strcmp(style,"fitted")) {
+
+      point->Y = calc_fitted_R_potential(D,nbff);
+
+    } else {
+
+      error_fn("%s: unknown potential style '%s'",__func__,style);
+    }
+  }
+  
+  return(0);
+}
+
+
+
+static void apply_R_potential_softness(NONBONDED_FF *nbff) {
+  
+  double Xo,Yo,X1,x1,x2;
+  
+  Xo = nbff->Do - nbff->Dvdw;
+  Yo = nbff->Eo;
+
+  // find point where Y=0:
+
+  if (!calc_parabola_x_intercepts(-(nbff->k1),2.0*(nbff->k1)*Xo,Yo-(nbff->k1)*sqr(Xo),&x1,&x2)) {
+
+    error_fn("%s: unexpected error occurred",__func__);
+  }
+
+  // apply softness and calculate LJ order:
+
+  X1 = fmin(x1,x2) - (params_get_parameter("pliff_softness"))->value.d;
+
+  nbff->k1 = Yo/sqr(X1-Xo);
+
+  nbff->Dc = X1 + nbff->Dvdw;
+
+  nbff->LJ_n = log(2.0)/log(nbff->Do/nbff->Dc);
+
+}
+
+
+
+static double calc_fitted_R_potential(double D,NONBONDED_FF *nbff) {
+
+  if (D < nbff->Do) {
+    
+    return((nbff->Eo) - (nbff->k1)*sqr((D-nbff->Do)));
+  }
+
+  if (D < nbff->LR_D) {
+    
+    return((nbff->Eo) - (nbff->k2)*sqr((D-nbff->Do)));
+  }
+    
+  return(log(nbff->LR_B) - (nbff->LR_A)*(D-(nbff->LR_D)));
+}
+
+
+
+static int fit_R_potential_full(HISTOGRAM *histogram,NONBONDED_FF *nbff) {
+
+  int i,j,maxi,flag;
+  double *s,*int1,int_tot,k1,k2,y,w,sumw;
+  HISTOGRAM_POINT *point,*point1,*point2;
+
+  // if there is lots of data, we may be able to get the optimum straight from the raw points:
+
+  if (!get_R_optimum_from_points(histogram,nbff)) {
+
+    return(0);
+  }
+
+  int1 = (double*) calloc(histogram->n_points,sizeof(double));
+  s = (double*) calloc(histogram->n_points,sizeof(double));
+
+  if ((int1 == NULL) || (s == NULL)) {
+
+    error_fn("%s: out of memory allocating int1",__func__);
+  }
+
+  // get total integral, and left-side integral for each point:
+
+  int_tot = 0.0;
+ 
+  for (i=0,point=histogram->points;i<histogram->n_points;i++,point++) {
+
+    int_tot += (point->Y)*(histogram->stepX);
+
+    int1[i] = int_tot - 0.5*(point->Y)*(histogram->stepX);
+  }
+
+  maxi = 0;
+
+  for (i=0,point=histogram->points;i<histogram->n_points;i++,point++) {
+
+    s[i] = 1.0E30;
+
+    // attempt fit if propensity is above 1.0
+
+    if (point->Y > 1.0) {
+
+      // calculate k1 and k2 from integral and Y value:
+
+      k1 = 0.25*PI*sqr((point->Y)/int1[i]);
+
+      k2 = (point->Y)/(int_tot - int1[i]);
+
+      if ((k1 > MIN_K1) && (k2 < MAX_LR_A)) {
+
+	// calculate fit error:
+
+	s[i] = 0.0;
+	sumw = 0.0;
+	
+	for (j=0,point1=histogram->points;j<histogram->n_points;j++,point1++) {
+	
+	  y = (j <= i) ? (point->Y)*exp(-k1*sqr((point1->X)-(point->X))) : (point->Y)*exp(-k2*((point1->X)-(point->X)));
+
+	  w = 1.0/sqr(point->sY);
+	  
+	  s[i] += w*sqr(y - (point1->Y));
+	
+	  sumw += w;
+	}
+	
+	s[i] = sqrt(s[i]/sumw);
+
+	// keep track of best fit:
+
+	if (s[i] < s[maxi]) {
+	  
+	  maxi = i;
+	}
+      }
+    }
+  }
+
+  if (maxi == 0) {
+
+    warning_fn("%s: no meaningful full R potential fit for %s (%d) - %s (%d)",__func__,
+	       nbff->type1->name,nbff->type1->id,
+	       nbff->type2->name,nbff->type2->id);
+
+    return(1);
+  }
+
+  point = histogram->points + maxi;
+
+  // check if the optimum is ambiguous:
+
+  flag = 0;
+
+  for (i=0,point1=histogram->points;i<histogram->n_points;i++,point1++) {
+
+    if ((fabs((point1->X)-(point->X)) > MIN_AMBIGUOUS_PEAK_DIST) && ((s[maxi]/s[i]) > MIN_AMBIGUOUS_PEAK_RATIO)) {
+
+      warning_fn("%s: ambiguous full R potential fit for %s (%d) - %s (%d)",__func__,
+		 nbff->type1->name,nbff->type1->id,
+		 nbff->type2->name,nbff->type2->id);
+
+      return(1);
+ 
+    } else if ((fabs((point1->X)-(point->X)) > WARNING_AMBIGUOUS_PEAK_DIST) && ((s[maxi]/s[i]) > WARNING_AMBIGUOUS_PEAK_RATIO)) {
+
+      flag = 1;
+    }
+  }
+
+  if (flag) {
+
+    warning_fn("%s: potentially ambiguous full R potential fit for %s (%d) - %s (%d)",__func__,
+	       nbff->type1->name,nbff->type1->id,
+	       nbff->type2->name,nbff->type2->id);
+  }
+
+  // assign potential parameters:
+
+  nbff->Do = point->X + nbff->Dvdw;
+  nbff->Po = point->Y;
+  nbff->Eo = log(point->Y);
+
+  free(int1);
+  free(s);
+
+  return(0);
+}
+
+
+
+static int get_R_optimum_from_points(HISTOGRAM *histogram,NONBONDED_FF *nbff) {
+
+  int i,n,maxi,fluct;
+  double x[1000],y[1000],sy[1000],dy[1000],yfit[1000],c[3],sumsy,avgsy;
+
+  histogram2xys(histogram,-10.0,10.0,1.0,999.9,x,y,sy,&n);
+
+  // find maximum and average error:
+
+  maxi = 0;
+  
+  sumsy = 0.0;
+
+  for (i=0;i<n;i++) {
+
+    if (y[i] > y[maxi]) {
+
+      maxi = i;
+    }
+
+    sumsy += sy[i];
+  }
+
+  avgsy = sumsy/((double) n);
+
+  if ((maxi < 2) || (maxi > n-3) || (avgsy > 0.05)) {
+
+    return(1);
+  }
+
+  // check if potential rises and falls continuously:
+
+  for (i=1;i<n;i++) {
+
+    dy[i] = y[i] - y[i-1];
+
+    if (i <= maxi) {
+
+      if (dy[i] < 0.0) {
+
+	return(2);
+      }
+
+    } else {
+
+      if (dy[i] > 0.0) {
+
+	return(2);
+      }
+    }
+  }
+
+  // check fluctuations in first derivative:
+
+  fluct = 0;
+
+  for (i=2;i<n-1;i++) {
+
+    if (((dy[i] > dy[i-1]) && (dy[i] > dy[i+1])) || ((dy[i] < dy[i-1]) && (dy[i] < dy[i+1]))) {
+
+      fluct++;
+    }
+  }
+
+  if (fluct > 5) {
+
+    return(3);
+  }
+
+  // set optimum:
+
+  nbff->Do = x[maxi] + nbff->Dvdw;
+  nbff->Po = y[maxi];
+  nbff->Eo = log(nbff->Po);
+
+  return(0);
+}
+
+
+
+
+static int refine_R_optimum(HISTOGRAM *histogram,NONBONDED_FF *nbff) {
+
+  int i,n;
+  double Xo,Yo,X,Y,x[1000],y[1000],sy[1000],yfit[1000],c[3],Z,avg_sy,k1,k2,fk;
+
+  Xo = nbff->Do - nbff->Dvdw;
+  Yo = log(nbff->Po);
+
+  histogram2xys(histogram,Xo-1.5*MAX_REFINE_SHIFT_X,Xo+1.5*MAX_REFINE_SHIFT_X,1.001,999.99,x,y,sy,&n);
+
+  avg_sy = 0.0;
+
+  for (i=0;i<n;i++) {
+
+    sy[i] /= y[i];
+    y[i] = log(y[i]);
+
+    avg_sy += sy[i];
+  }
+
+  avg_sy /= (double) n;
+
+  nbff->opt_Z = nbff->opt_sY = 1.0E30;
+
+  for (X=Xo-MAX_REFINE_SHIFT_X;X<Xo+MAX_REFINE_SHIFT_X+0.00001;X+=REFINE_DX) {
+
+    for (Y=Yo-(MAX_REFINE_SHIFT_Y*avg_sy);Y<Yo+(MAX_REFINE_SHIFT_Y*avg_sy)+0.00001;Y+=REFINE_DY*Yo) {
+     
+      if (!weighted_asymmetric_parabola_fit(x,y,sy,n,X,Y,c,yfit)) {
+	
+	k1 = -c[0];
+	k2 = -c[1];
+
+	// check here against the k1 value that would be obtained for the
+	// short-range potential:
+
+	fk = (calc_short_range_k(histogram,X,exp(Y))/k2);
+
+	Z = normalised_fit_error(y,yfit,sy,n);
+
+	if ((k1 > MIN_K1) && (k2 > MIN_K2) && (fk > MIN_K_RATIO) && (fk < MAX_K_RATIO)) {
+
+	  if (Z < nbff->opt_Z) {
+  
+	    //printf("Z %10.4lf %10.4lf %10.4lf %10.4lf %10.4lf %10.4lf %10.4lf\n",Z,k1,calc_short_range_k(histogram,X,exp(Y)),k2,fk,X + nbff->Dvdw,exp(Y));
+
+	    nbff->opt_Z = Z;
+	    
+	    nbff->opt_sY = weighted_fit_error(y,yfit,sy,n);
+	    
+	    nbff->Do = X + nbff->Dvdw;
+	    nbff->Eo = Y;
+	    
+	    nbff->k1 = k1;
+	    nbff->k2 = k2;
+	  }
+	}
+      }
+    }
+  }
+  
+  nbff->Po = exp(nbff->Eo);
+}
+
+
+
+static int fit_short_range_potential(HISTOGRAM *histogram,NONBONDED_FF *nbff) {
+  
+  double Xo,Yo,x1,x2;
+  
+  Xo = nbff->Do - nbff->Dvdw;
+  Yo = nbff->Po;
+  
+  nbff->k1 = calc_short_range_k(histogram,Xo,Yo);
+
+  // find point where Y=0:
+
+  if (!calc_parabola_x_intercepts(-(nbff->k1),2.0*(nbff->k1)*Xo,log(Yo)-(nbff->k1)*sqr(Xo),&x1,&x2)) {
+
+    error_fn("%s: unexpected error occurred",__func__);
+  }
+
+  // calculateDc and  LJ order:
+
+  nbff->Dc = fmin(x1,x2) + nbff->Dvdw;
+
+  nbff->LJ_n = log(2.0)/log(nbff->Do/nbff->Dc);
+}
+
+
+
+static double calc_short_range_k(HISTOGRAM *histogram,double Xo,double Yo) {
+  
+  double int1;
+  HISTOGRAM_POINT *point;
+
+  // integrate left-hand side of peak:
+  
+  int1 = 0.0;
+  
+  for (point=histogram->points;(point->X)<Xo;point++) {
+ 
+    int1 += (point->Y)*(histogram->stepX);
+  }
+  
+  point--;
+  
+  // add final bit between last point and top of the peak:
+  
+  int1 -= 0.5*(point->Y)*(histogram->stepX);
+  int1 += 0.5*(Yo + (point->Y))*(Xo - (point->X));
+
+  return((PI/4.0)*sqr(Yo/int1));
+}
+
+
+
+static int fit_long_range_potential(HISTOGRAM *histogram,NONBONDED_FF *nbff) {
+
+  int i,n;
+  double Xo,Yo,X1,Y1,X2,Y2,x[1000],y[1000],sy[1000],w[1000],yfit[1000],c[3],sumx2,sumx,sumy,sumw,a,b,k2,Z,Zmin,x1,x2,n1,n2,fk;
+  HISTOGRAM *hist;
+  HISTOGRAM_POINT *point;
+
+  Xo = nbff->Do - nbff->Dvdw;
+  Yo = log(nbff->Po);
+
+  hist = clone_histogram(histogram,0);
+  
+  for (i=0,point=hist->points;i<hist->n_points;i++,point++) {
+
+    if (point->N) {
+
+      point->sY = point->sY/point->Y;
+      point->Y = log(point->Y);
+    }
+  }
+
+  // find optimum distance to change from parabola to straight line:
+
+  Zmin = 1.0E10;
+
+  for (X1=Xo+0.2;X1<Xo+2.0;X1+=0.01) {
+
+    // fit parabola to first section after optimum:
+
+    histogram2xys(hist,Xo,X1,-999.9,999.99,x,y,sy,&n);
+
+    sumx2 = sumy = 0.0;
+
+    for (i=0;i<n;i++) {
+
+      w[i] = 1.0/sqr(sy[i]);
+
+      sumx2 += w[i]*sqr(x[i]-Xo);
+      sumy += w[i]*(y[i] - Yo);
+    }
+
+    k2 = -(sumy/sumx2);
+
+    fk = (nbff->k1/k2);
+
+    // if outside range, revert to previous (valid) k2 value:
+
+    if ((k2 < MIN_K2) || (fk < MIN_K_RATIO) || (fk > MAX_K_RATIO)) {
+
+      k2 = nbff->k2;
+
+      fk = (nbff->k1/k2);
+    }
+
+    if ((k2 > MIN_K2) && (fk > MIN_K_RATIO) && (fk < MAX_K_RATIO)) {
+
+      Y1 = (nbff->Po)*exp(-k2*sqr(X1-Xo));
+      
+      // fit straight line through remainder:
+      
+      histogram2xys(histogram,X1+0.0001,999.9,0.0,999.99,x,y,sy,&n);
+      
+      sumy = 0.5*(x[0]-X1)*(y[0]+Y1) + 0.5*y[0]*(histogram->stepX);
+      
+      for (i=1;i<n;i++) {
+	
+	sumy += y[i]*(histogram->stepX);
+      }
+      
+      a = Y1/sumy;
+      b = Y1;
+      
+      // test overall long-range fit:
+      
+      histogram2xys(histogram,Xo,999.9,0.0,999.99,x,y,sy,&n);
+      
+      for (i=0;i<n;i++) {
+	
+	sy[i] = 1.0;
+	yfit[i] = (x[i] < X1) ? (nbff->Po)*exp(-k2*(sqr(x[i]-Xo))) : b*exp(-a*(x[i]-X1));
+      }
+      
+      Z = normalised_fit_error(y,yfit,sy,n);
+      
+      if (Z < Zmin) {
+	
+	//printf("Z %10.4lf %10.4lf %10.4lf %10.4lf %10.4lf %10.4lf %10.4lf\n",Z,nbff->k1,k2,fk,MIN_K2,MIN_K_RATIO,MAX_K_RATIO);
+
+	nbff->k2 = k2;
+	
+	nbff->LR_D = X1 + nbff->Dvdw;
+	nbff->LR_A = a;
+	nbff->LR_B = b;
+	
+	Zmin = Z;
+      }
+    }
+  }
+
+  free_histogram(hist);
+
+  if (Zmin > 1000.0) {
+
+    return(1);
+  }
+
+  // fit long-range Lennard-Jones:
+
+  Y1 = 0.50*Yo;
+  X1 = (Y1 > log(nbff->LR_B)) ? sqrt((Yo-Y1)/(nbff->k2)) : ((log(nbff->LR_B)-Y1)/(nbff->LR_A)) + (nbff->LR_D) - (nbff->Do);
+
+  if (!calc_parabola_x_intercepts(-Yo,2.0*Yo,-Y1,&x1,&x2)) {
+
+    error_fn("%s: couldn't fit Lennard-Jones to long-range section of potential (1)",__func__);
+  }
+
+  if ((x1 < 0.0) || (x2 < 0.0)) {
+
+    error_fn("%s: couldn't fit Lennard-Jones to long-range section of potential (2)",__func__);
+  }
+
+  n1 = log(x1)/log((nbff->Do)/(X1+(nbff->Do)));
+  n2 = log(x2)/log((nbff->Do)/(X1+(nbff->Do)));
+
+  if ((n1 < 0.0) && (n2 < 0.0)) {
+
+    error_fn("%s: couldn't fit Lennard-Jones to long-range section of potential (2)",__func__);
+  }
+
+  nbff->LR_n = (n1 > 0.0) ? n1 : n2;
+
+  return(0);
+}
+
+
+
+static void recalc_R_histogram_errors(HISTOGRAM *histogram) {
+
+  int i,j,n_pts,di;
+  double x[100],y[100],sy[100],yfit[100],c[3],af[100],a,suma;
+  HISTOGRAM_POINT *point,*spoint;
+
+  for (i=0,point=histogram->points;i<histogram->n_points;i++,point++) {
+
+    n_pts = 0;
+      
+    for (j=0,spoint=histogram->points;j<histogram->n_points;j++,spoint++) {
+      
+      if ((fabs(point->X - spoint->X) < 0.5) && (spoint->N > 0)) {
+	
+	x[n_pts] = spoint->X;
+	y[n_pts] = spoint->Y/((double) spoint->N);
+	
+	sy[n_pts] = 1.0;
+	
+	n_pts++;
+      }
+    }
+ 
+    if (n_pts > 3) {
+
+      weighted_polynomial_fit(x,y,sy,n_pts,1,c,yfit);
+    
+      af[i] = polynomial(point->X,c,1);
+
+    } else {
+
+      af[i] = -1.0;
+    }
+  }
+
+  for (i=0,point=histogram->points;i<histogram->n_points;i++,point++) {
+
+    if (af[i] < 0.0) {
+
+      di = 1;
+
+      do {
+
+	n_pts = 0;
+	suma = 0.0;
+
+	for (j=i-di;j<=i+di;j++) {
+
+	  if ((j >= 0) && (j < histogram->n_points) && (af[j] > 0.0)) {
+
+	    suma += af[j];
+	    
+	    n_pts++;
+	  }
+	}
+
+	di++;
+
+      } while (!n_pts);
+
+      a = suma/((double) n_pts);
+
+    } else {
+
+      a = af[i];
+    }
+
+    if (point->N) {
+      
+      point->sY = a*sqrt((double) point->N);
+      
+    } else {
+
+      point->sY = a*((double) histogram->sumN)*(1.0 - pow(0.32,1.0/((double) histogram->sumN)));
+    }
+
+    point->sYraw = point->sY;
+  }
 }
 
 
@@ -1062,6 +2069,54 @@ static void apply_2d_correction(int id,double f) {
 
 
 
+static void init_ami_ff(FORCE_FIELD *ff) {
+
+  int flag;
+  char *pli_dir,filename[1000],line[MAX_LINE_LEN],word[MAX_LINE_LEN];
+  HISTOGRAM *histogram;
+  PLI_FILE *file;
+
+  pli_dir = get_pli_dir();
+
+  sprintf(filename,"%s/ff/nonbonded/u.pliff",pli_dir);
+
+  file = open_file(filename,"r");
+
+  if (file == NULL) {
+
+    error_fn("init_ami_ff: failed to open ff file '%s'",filename);
+  }
+
+  ff->AMI_HISTOGRAM_ID = -1;
+
+  while (!end_of_file(file)) {
+
+    if (read_line(line,MAX_LINE_LEN,file) == NULL)
+      break;
+
+    flag = sscanf(line,"%s",word);
+
+    if (flag != EOF) {
+
+      if (!strcmp(word,"histogram")) {
+
+	histogram = read_histogram(file,line);
+
+	ff->AMI_HISTOGRAM_ID = histogram->id;
+      }
+    }
+  }
+
+  close_file(file);
+
+  if (ff->AMI_HISTOGRAM_ID == -1) {
+
+    error_fn("init_ami_ff: failed to read ff file '%s'",filename);
+  }
+}
+
+
+
 static void init_atom_ff_list(ATOM_FF *atom_ff_list,ATOM_TYPING_SCHEME *scheme,FORCE_FIELD *ff) {
 
   int i;
@@ -1123,26 +2178,43 @@ static void init_atom_ff(ATOM_FF *atom_ff,ATOM_TYPE *type,FORCE_FIELD *ff) {
 
 static void init_nonbonded_ff(NONBONDED_FF *nonbonded_ff,ATOM_TYPE *type1,ATOM_TYPE *type2,FORCE_FIELD *ff) {
 
+  nonbonded_ff->surrogate = 0;
   nonbonded_ff->ready = 0;
   nonbonded_ff->usage_count = 0;
 
   nonbonded_ff->type1 = type1;
   nonbonded_ff->type2 = type2;
 
-  nonbonded_ff->P = 0.0;
+  nonbonded_ff->P = -1.0;
   nonbonded_ff->sP = 0.0;
-  nonbonded_ff->lnP = 1.0;
+  nonbonded_ff->lnP = 0.0;
   nonbonded_ff->slnP = 0.0;
 
   strcpy(nonbonded_ff->precision,"undefined");
+  strcpy(nonbonded_ff->shape,"undefined");
+
+  nonbonded_ff->Dvdw = get_atom_type_vdw_radius(type1) + get_atom_type_vdw_radius(type2);
 
   nonbonded_ff->Do = 0.0;
+  nonbonded_ff->Eo = 0.0;
+  nonbonded_ff->Po = 1.0;
   nonbonded_ff->Dc = 0.0;
 
-  nonbonded_ff->use_clash_potential = ff_settings->use_clash_potentials;
+  nonbonded_ff->k1 = 0.0;
+  nonbonded_ff->k2 = 0.0;
 
-  nonbonded_ff->LJ_A = 0.0;
-  nonbonded_ff->LJ_B = 0.0;
+  nonbonded_ff->opt_Z = 0.0;
+  nonbonded_ff->opt_sY = 0.0;
+
+  nonbonded_ff->LJ_n = 6.0;
+
+  nonbonded_ff->LJ_Z = 0.0;
+  nonbonded_ff->LJ_sY = 0.0;
+
+  nonbonded_ff->LR_A = 0.0;
+  nonbonded_ff->LR_B = 0.0;
+  nonbonded_ff->LR_D = 0.0;
+  nonbonded_ff->LR_n = 6.0;
 
   nonbonded_ff->R_histogram_id = -1;
   nonbonded_ff->ALPHA1_histogram_id = -1;

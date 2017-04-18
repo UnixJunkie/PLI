@@ -1,4 +1,4 @@
-// Copyright 2015 Brendan McConkey and Astex Therapautics Ltd.
+// Copyright 2015 Brendan McConkey and Astex Therapeutics Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -81,7 +81,8 @@ static double spherical_arc(struct vertex ptAo, struct vertex ptB, struct vertex
 
 void contacts2voronoi(ATOM *atom) {
 
-  int i,NV,error_flag;
+  int i,NV;
+  unsigned int error_flag;
   char surfatom;         // atom type, 'I' internal, 'S' surface
   double rado;
   PTINDEX ptorder[100];  // for ordering vertices around each face
@@ -272,18 +273,20 @@ static void calc_areas(ATOM *atom,int NV,VERTEX *poly,VERTEX *centerpt,PLANE *co
   }
 
   if(engflag == 'Y') { // engulfing plane correction - project points onto sphere surface.
-
+    // TODO: check!
     if (atom->id == 0) {
 
-      printf("contacts atom = %5d (%s,%d) n_contacts = %d\n",atom->id,atom->subname,atom->subid,NC);
+      //printf("contacts atom = %5d (%s,%d) n_contacts = %d\n",atom->id,atom->subname,atom->subid,NC);
 
       for(i=0,contact=contactlist->contacts; i < NC; ++i,contact++) {
 
-	printf("contact to atom %5d %-5s %5s %5d %10.4lf\n",contact->atom2->id,contact->atom2->name,contact->atom2->subname,contact->atom2->subid,contact->distance);
+	//printf("contact to atom %5d %-5s %5s %5d %10.4lf\n",contact->atom2->id,contact->atom2->name,contact->atom2->subname,contact->atom2->subid,contact->distance);
 
 	if (contact->distance < 1.0) {
 
-	  error_fn("too short\n");
+	  error_fn("%s: too short %s %s %s - %s %s %s : %.4lf\n",__func__,
+		   contact->atom1->molecule->name,contact->atom1->name,contact->atom1->subname,
+		   contact->atom2->molecule->name,contact->atom2->name,contact->atom2->subname,contact->distance);
 	}
       }
     }

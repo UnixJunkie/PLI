@@ -1,4 +1,4 @@
-// Copyright 2015 Astex Therapautics Ltd.
+// Copyright 2015 Astex Therapeutics Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -41,17 +41,12 @@ static int count_histogram_maxima(HISTOGRAM*);
 static int local_histogram_maximum(HISTOGRAM_POINT*,int,int);
 static int local_histogram_minimum(HISTOGRAM_POINT*,int,int);
 static void init_histogram(HISTOGRAM*);
-static void normalise_histogram(HISTOGRAM*,int);
 static void smoothe_histogram(HISTOGRAM*,HISTOGRAM*,double);
-static void sharpen_histogram(HISTOGRAM*,HISTOGRAM*,double);
-static int remove_local_extreme(HISTOGRAM*);
 static double point_intrapolate(HISTOGRAM_POINT*,int,int,double*);
 static double two_point_extrapolate(HISTOGRAM_POINT*,HISTOGRAM_POINT*,double);
 static void subtract_histograms(HISTOGRAM*,HISTOGRAM*,HISTOGRAM*);
-static void log_histogram(HISTOGRAM*);
 static double avg_histogram_point_error(HISTOGRAM*,HISTOGRAM*);
 static double avg_histogram_point_zscore(HISTOGRAM*,HISTOGRAM*);
-static void free_histogram(HISTOGRAM*);
 static void alloc_histograms(void);
 static void alloc_histogram_points(HISTOGRAM*);
 
@@ -98,7 +93,8 @@ HISTOGRAM* get_histogram(int histogram_id) {
 
 void run_histogram(SETTINGS *settings) {
 
-  int hist_id;
+  int i,hist_id;
+  double dist,D,score;
   ATOM_TYPE *type1,*type2;
   ATOM_TYPING_SCHEME *scheme;
   NONBONDED_FF *nonbonded_ff;
@@ -106,9 +102,9 @@ void run_histogram(SETTINGS *settings) {
 
   scheme = settings->atom_typing_scheme;
 
-  if ((settings->id1 == -1) || (settings->id2 == -1)) {
+  if (((settings->id1 == -1) && (settings->eid1 == -1)) || ((settings->id2 == -1) && (settings->eid2 == -1))) {
 
-    error_fn("histogram: id1 or id2 undefined");
+    error_fn("histogram: id1/eid1 or id2/eid2 undefined");
   }
 
   if (!strcmp(settings->hist_name,"UNKNOWN")) {
@@ -116,8 +112,18 @@ void run_histogram(SETTINGS *settings) {
     error_fn("histogram: hist_name undefined");
   }
 
-  type1 = get_atom_type_by_id(settings->id1,scheme);
-  type2 = get_atom_type_by_id(settings->id2,scheme);
+  if (settings->id1 != -1) {
+    type1 = get_atom_type_by_id(settings->id1,scheme);
+  } else {
+    type1 = get_atom_type_by_element_id(settings->eid1, scheme);
+  }
+
+  if (settings->id2 != -1) {
+      type2 = get_atom_type_by_id(settings->id2,scheme);
+  } else {
+      type2 = get_atom_type_by_element_id(settings->eid2, scheme);
+  }
+
 
   nonbonded_ff = get_nonbonded_ff(settings->force_field->nonbonded,type1,type2);
 
@@ -135,16 +141,15 @@ void run_histogram(SETTINGS *settings) {
 
     hist_id = nonbonded_ff->BETA1_histogram_id;
   }
-
-
   if (hist_id != -1) {
 
     histogram = histograms + hist_id;
-  }
-
-  if (!strcmp(settings->mode->name,"histogram")) {
 
     write_histogram(histogram,type1,type2);
+
+  } else {
+
+    error_fn("%s: Histogram %s not found", __func__, settings->hist_name);
   }
 }
 
@@ -157,9 +162,9 @@ HISTOGRAM *read_histogram(PLI_FILE *file,char *headline) {
   HISTOGRAM *histogram;
   HISTOGRAM_POINT *point;
 
-  histogram = new_histogram();
+  histogram = create_histogram();
 
-  sscanf(headline,"%s %s %*s %d %lf %lf %lf %lf",
+  sscanf(headline,"%s %s %*s %ld %lf %lf %lf %lf",
 	 word,histogram->name,
 	 &(histogram->sumN),&(histogram->sumY),
 	 &(histogram->startX),&(histogram->endX),&(histogram->stepX));
@@ -179,7 +184,18 @@ HISTOGRAM *read_histogram(PLI_FILE *file,char *headline) {
 
 	point = histogram->points + histogram->n_points;
 
+	// TODO: in future, should read A (total area) and N (number of observations)
+	// so estimates for standard deviation and confidence intervals can be
+	// calculated from those.
+	//
+	// For now, estimate N from A (Y) and sA (sY)
+
 	sscanf(line,"%lf %lf %lf",&(point->X),&(point->Y),&(point->sY));
+
+	point->Yraw = point->Y;
+	point->sYraw = point->sY;
+
+	point->N = (point->sY > 1.0E-30) ? round(sqr(point->Y/point->sY)) : 0;	
 
 	histogram->n_points++;
       }
@@ -191,7 +207,7 @@ HISTOGRAM *read_histogram(PLI_FILE *file,char *headline) {
 
 
 
-HISTOGRAM *new_histogram(void) {
+HISTOGRAM *create_histogram(void) {
 
   int i;
   HISTOGRAM *histogram;
@@ -219,7 +235,7 @@ HISTOGRAM *new_histogram(void) {
   return(histogram);
 }
 
-
+// need to remove this function as it is confusing wrt create_histogram
 
 HISTOGRAM* add_histogram(char *name,int n_points) {
 
@@ -262,7 +278,7 @@ void process_histogram(HISTOGRAM *histogram) {
 
   // initially try smoothing using bin width as sigma:
 
-  new_histogram = clone_histogram(histogram);
+  new_histogram = clone_histogram(histogram,0);
 
   start_sX = (histogram->start_s)*(histogram->stepX);
   end_sX = 1.0001*(histogram->end_s)*(histogram->stepX);
@@ -406,6 +422,30 @@ double histogram_X2Y(HISTOGRAM *histogram,double X) {
 
 
 
+void histogram2xys(HISTOGRAM *histogram,double x1,double x2,double y1,double y2,double *x,double *y,double *s,int *n) {
+
+  int i,j;
+  HISTOGRAM_POINT *point;
+
+  j = 0;
+
+  for (i=0,point=histogram->points;i<histogram->n_points;i++,point++) {
+     
+    if ((point->X > x1) && (point->X < x2) && (point->Y > y1) && (point->Y < y2) && (point->N > 2)) {
+           
+      x[j] = point->X;
+      y[j] = point->Y;
+      s[j] = point->sY;
+      
+      j++;
+    }
+  }
+
+  *n = j;
+}
+
+
+
 static double histogram_intrapolate(HISTOGRAM *histogram,double X) {
 
   int bin;
@@ -441,6 +481,54 @@ static double histogram_intrapolate(HISTOGRAM *histogram,double X) {
   Y = Y1 + (Y2-Y1)*((X-X1)/(X2-X1));
 
   return(Y);
+}
+
+
+
+int calc_histogram_maximum(HISTOGRAM *histogram,double *Xmax,double *Ymax) {
+
+  int i,maxi,flag;
+  double maxY;
+  HISTOGRAM_POINT *point,*point1,*point2,*point3;
+ 
+  maxi = -1;
+  maxY = -1.0E100;
+
+  for (i=0,point=histogram->points;i<histogram->n_points;i++,point++) {
+
+    if (point->Y > maxY) {
+      
+      maxi = i;
+      maxY = point->Y;
+    }
+  }
+
+  if (maxi == -1) {
+
+    error_fn("%s: unexpected error",__func__);
+  }
+
+  point2 = histogram->points + maxi;
+
+  if ((maxi == 0) || ((maxi+1) == histogram->n_points)) {
+
+    *Xmax = point2->X;
+    *Ymax = point2->Y;
+
+  } else {
+
+    point1 = point2 - 1;
+    point3 = point2 + 1;
+
+    flag = calc_parabola_vertex(point1->X,point1->Y,point2->X,point2->Y,point3->X,point3->Y,Xmax,Ymax);
+
+    if (flag) {
+
+      return(1);
+    }
+  }
+
+  return(0);
 }
 
 
@@ -568,7 +656,7 @@ void write_histogram(HISTOGRAM *histogram,ATOM_TYPE *type1,ATOM_TYPE *type2) {
 
     if (!strcmp(histogram->name,"R")) {
 
-      if ((type1 == NULL) || (type2 == NULL)) {
+      if ((type1 == NULL) || (type2 == NULL) || (type1->united_atom == NULL) || (type2->united_atom == NULL)) {
 
 	printf("%10.4lf %10.4lf %10.4lf\n",point->X,point->Y,point->sY);
 
@@ -645,26 +733,41 @@ static void init_histogram(HISTOGRAM *histogram) {
   histogram->geometric_correction = NO_GEOMETRIC_CORRECTION;
   histogram->normalisation_method = ABSOLUTE_NORMALISATION;
 
-  histogram->sharpen = 0;
-  histogram->sharpen_sX = 0.0;
-
   histogram->log_scale = 0;
 }
 
 
 
-HISTOGRAM* clone_histogram(HISTOGRAM *histogram) {
+HISTOGRAM* clone_histogram(HISTOGRAM *histogram,int keep) {
 
+  int id,new_id;
   HISTOGRAM *new_histogram;
 
-  new_histogram = (HISTOGRAM*) malloc(sizeof(HISTOGRAM));
+  id = histogram->id;
 
-  if (new_histogram == NULL) {
+  if (keep) {
 
-    error_fn("clone_histogram: out of memory allocating histogram");
+    new_histogram = create_histogram();
+
+    new_id = new_histogram->id;
+
+    histogram = get_histogram(id);
+
+  } else {
+
+    new_histogram = (HISTOGRAM*) malloc(sizeof(HISTOGRAM));
+
+    if (new_histogram == NULL) {
+      
+      error_fn("clone_histogram: out of memory allocating histogram");
+    }
+
+    new_id = histogram->id;
   }
 
   memcpy(new_histogram,histogram,sizeof(HISTOGRAM));
+
+  new_histogram->id = new_id;
 
   if (new_histogram->n_points) {
 
@@ -682,8 +785,7 @@ HISTOGRAM* clone_histogram(HISTOGRAM *histogram) {
 }
 
 
-
-static void normalise_histogram(HISTOGRAM *histogram,int geometric_correction) {
+void normalise_histogram(HISTOGRAM *histogram,int geometric_correction) {
 
   int i,conical;
   double stepX,intY,intF,C,F;
@@ -718,6 +820,9 @@ static void normalise_histogram(HISTOGRAM *histogram,int geometric_correction) {
 
     point->Y *= (C/F);
     point->sY *= (C/F);
+
+    point->Yraw *= (C/F);
+    point->sYraw *= (C/F);
   }
 }
 
@@ -791,67 +896,7 @@ static void smoothe_histogram(HISTOGRAM *histogram,HISTOGRAM *smooth_histogram,d
 
 
 
-static void sharpen_histogram(HISTOGRAM *histogram,HISTOGRAM *sharpened_histogram,double sX) {
-
-  int i;
-  double f,z,f_opt,z_max;
-  HISTOGRAM *smooth_histogram,*diff_histogram;
-  HISTOGRAM_POINT *ph,*pd,*psh,*psm;
-
-  smooth_histogram = clone_histogram(histogram);
-
-  smoothe_histogram(histogram,smooth_histogram,sX);
-
-  diff_histogram = clone_histogram(histogram);
-
-  subtract_histograms(histogram,smooth_histogram,diff_histogram);
-
-  z_max = 999.999;
-  f_opt = -1.0;
-
-  for (f=0.05;f<4.0;f+=0.05) {
-    
-    for (i=0,ph=histogram->points,pd=diff_histogram->points,psh=sharpened_histogram->points;i<histogram->n_points;i++,ph++,pd++,psh++) {
-
-      psh->Y = ph->Y - f*(pd->Y);
-
-      if (psh->Y < 0.0) {
-
-	psh->Y = 0.0 ;
-      }
-    }
-
-    smoothe_histogram(sharpened_histogram,smooth_histogram,sX);
-
-    z = avg_histogram_point_zscore(smooth_histogram,histogram);
-
-    if (z < z_max) {
-
-      z_max = z;
-      f_opt = f;
-    }
-  }
-
-  if (f_opt > 0.0) {
-    
-    for (i=0,ph=histogram->points,pd=diff_histogram->points,psh=sharpened_histogram->points;i<histogram->n_points;i++,ph++,pd++,psh++) {
-
-      psh->Y = ph->Y - f_opt*(pd->Y);
-
-      if (psh->Y < 0.0) {
-
-	psh->Y = 0.0 ;
-      }
-    }
-  }
-
-  free_histogram(smooth_histogram);
-  free_histogram(diff_histogram);
-}
-
-
-
-static int remove_local_extreme(HISTOGRAM *histogram) {
+int remove_local_extreme(HISTOGRAM *histogram) {
 
   int i,n_points,best_i;
   double Y,sY,min_sY;
@@ -909,6 +954,8 @@ static int remove_local_extreme(HISTOGRAM *histogram) {
       point->Y = Y;
     }
   }
+
+  // TODO: this was clearly disabled here for some reason.
 
   return(0);
 
@@ -982,7 +1029,7 @@ static void subtract_histograms(HISTOGRAM *hist1,HISTOGRAM *hist2,HISTOGRAM *dif
 
 
 
-static void log_histogram(HISTOGRAM *histogram) {
+void log_histogram(HISTOGRAM *histogram) {
 
   int i;
   double minY,Y,sY;
@@ -1008,12 +1055,11 @@ static void log_histogram(HISTOGRAM *histogram) {
   for (i=0,point=histogram->points;i<histogram->n_points;i++,point++) {
 
     Y = (point->Y > 1.0E-10) ? log(point->Y) : log(minY);
-
     sY = (point->Y > 1.0E-10) ? (point->sY)/(point->Y) : 1.0;
 
     point->Y = Y;
     point->sY = sY;
- }
+  }
 }
 
 
@@ -1090,7 +1136,7 @@ static double avg_histogram_point_zscore(HISTOGRAM *histogram,HISTOGRAM *ref_his
 
 
 
-static void free_histogram(HISTOGRAM *histogram) {
+void free_histogram(HISTOGRAM *histogram) {
 
   if (histogram->n_points) {
 

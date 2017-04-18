@@ -1,4 +1,4 @@
-// Copyright 2015 Astex Therapautics Ltd.
+// Copyright 2015 Astex Therapeutics Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@ static void select_system_atoms(SYSTEM*);
 static void check_system_ligand(PLI_FILE *file,SYSTEM*,enum OUTPUT_FORMAT oformat);
 static void write_system(PLI_FILE*,SYSTEM*,enum OUTPUT_FORMAT,unsigned long int);
 static ATOMLIST* extended_system_atomlist(SYSTEM*);
+static unsigned char* system_mask(SYSTEM*,unsigned char*,GRID*);
 
 
 
@@ -207,7 +208,6 @@ void output_system(PLI_FILE *file,SYSTEM *system) {
   unsigned long int oflags;
   char *oatoms,filename[MAX_LINE_LEN];
   enum OUTPUT_FORMAT oformat;
-  enum ATOM_STYLE astyle;
   ATOMLIST *alist,*clist;
   PLI_FILE *ofile;
   SETTINGS *settings;
@@ -216,7 +216,6 @@ void output_system(PLI_FILE *file,SYSTEM *system) {
 
   oformat = settings->oformat;
   oflags = settings->oflags;
-  astyle = settings->astyle;
   oatoms = settings->oatoms;
 
   // set atom list:
@@ -257,12 +256,7 @@ void output_system(PLI_FILE *file,SYSTEM *system) {
 
     error_fn("output_system: unknown atom selection '%s'",oatoms);
   }
-
-  if (oflags & OUTPUT_SIMB) {
-
-    calc_system_simb(system,0);
-  }
-
+  
   // output system:
 
   if (oflags & OUTPUT_SYSTEM) {
@@ -274,7 +268,7 @@ void output_system(PLI_FILE *file,SYSTEM *system) {
 
   if (oflags & OUTPUT_ATOMS) {
 
-    write_atom_list(file,alist,astyle,oformat,oflags);
+    write_atom_list(file,alist);
   }
 
   // output contacts:
@@ -297,10 +291,12 @@ void output_system(PLI_FILE *file,SYSTEM *system) {
 
     write_clashes_atom_list(file,clist,oformat,oflags);
   }
+  
+  // output triplets
 
-  if (oflags & OUTPUT_SITE_STATS) {
+  if (oflags & OUTPUT_TRIPLETS) {
 
-    //write_burial_system(file,system);    
+    write_hbond_triplets_system(file, system, oformat);
   }
 
   // output SAS statistics:
@@ -329,7 +325,7 @@ void output_system(PLI_FILE *file,SYSTEM *system) {
 
     ofile = open_file(filename,"w");
 
-    write_mdl_atom_list(ofile,alist);
+    write_mdl_atom_list(ofile,alist, "pli mdl mol file", 0, 0);
 
     close_file(ofile);
   }
@@ -368,9 +364,24 @@ SYSTEM* molecule2system(MOLECULE *molecule,SETTINGS *settings) {
 
   add_molecule_to_list(system->molecule_list,molecule);
 
+  if (molecule->flags & PROTEIN_MOLECULE) {
+
+    system->protein = molecule;
+
+    if (molecule->system->site_ligand) {
+
+      system->site_ligand = molecule->system->site_ligand;
+    }
+  }
+
   system->selection = molecule->selection;
 
   strcpy(system->name,molecule->name);
+
+  // TODO: it might be better to inherit the dof from the parent system 
+  // than from the settings
+
+  system->dof = dofs_molecule_space(settings->dof,molecule->flags);
 
   return(system);
 }
@@ -379,21 +390,26 @@ SYSTEM* molecule2system(MOLECULE *molecule,SETTINGS *settings) {
 
 void prep_system(SYSTEM *system,unsigned int flags) {
 
-  int i,all_molecules_prepped;
-  MOLECULE **moleculep,*molecule,*protein,*symmetry;
+  int i;
+  MOLECULE **moleculep,*molecule;
   MOLECULE_LIST *list;
   SETTINGS *settings;
+
+  if (system->prepped) {
+
+    return;
+  }
 
   list = system->molecule_list;
 
   if (list == NULL) {
 
-   return;
+    error_fn("%s: no molecules in system",__func__);
   }
 
-  settings = system->settings;
+  // prep all molecules in system:
 
-  all_molecules_prepped = 1;
+  settings = system->settings;
 
   for (i=0,moleculep=list->molecules;i<list->n_molecules;i++,moleculep++) {
 
@@ -408,23 +424,18 @@ void prep_system(SYSTEM *system,unsigned int flags) {
 
     if (!(molecule->prepped)) {
 
-      all_molecules_prepped = 0;
+      error_fn("%s: molecule %s in system was not prepped",__func__,molecule->name);
     }
   }
 
-  protein = system->protein;
-  symmetry = system->symmetry;
+  if (system->template) {
 
-  if ((protein) && (symmetry) && (protein->selection) && (symmetry->selection)) {
+    prep_molecule(system->template,settings);
+  }
 
-    add_atomlist_to_atomlist(protein->selection,symmetry->selection);
+  if (system->site_ligand) {
 
-    free_atomlist(symmetry->selection);
-
-    symmetry->selection = NULL;
-    symmetry->molsystem->selection = NULL;
-
-    protein->molsystem->selection = protein->selection;
+    prep_molecule(system->site_ligand,settings);
   }
 
   if ((!strcmp(system->name,"system")) && (system->ligand)) {
@@ -433,45 +444,26 @@ void prep_system(SYSTEM *system,unsigned int flags) {
   }
 
   select_system_atoms(system);
+  
+  resolve_system(system);
 
-  if (all_molecules_prepped) {
-
-    resolve_system(system);
-
-    flag_skipped_waters(system);
-
-    flag_active_waters(system);
-
-  } else {
-
-    for (i=0,moleculep=list->molecules;i<list->n_molecules;i++,moleculep++) {
-
-      molecule = *moleculep;
-
-      if (molecule->prepped) {
-
-	if (molecule->molsystem == NULL) {
-
-	  error_fn("no molsystem for molecule %s\n",molecule->name);
-	}
-
-	resolve_system(molecule->molsystem);
-
-	flag_skipped_waters(molecule->molsystem);
-
-	flag_active_waters(molecule->molsystem);
-      }
-    }
-  }
+  flag_skipped_waters(system);
+  
+  flag_active_waters(system);
 
   system->coords = get_list_coords(system->selection);
 
-  if ((all_molecules_prepped) && (system->settings->minimise)) {
+  system->prepped = 1;
+
+  if ((settings->minimise) && (settings->mode->allow_pre_minimise)) {
+
+    prep_min_atom_tethers(system);
 
     minimise_system(system,settings->sfunc);
+
+    unprep_min_atom_tethers(system);
   }
 }
-
 
 
 void unprep_system(SYSTEM *system,unsigned int flags) {
@@ -481,6 +473,10 @@ void unprep_system(SYSTEM *system,unsigned int flags) {
   MOLECULE_LIST *list;
   SETTINGS *settings;
 
+  settings = system->settings;
+
+  unprep_score_system(system,flags,settings->sfunc);
+
   reset_system(system,1);
 
   set_list_coords(system->selection,system->coords);
@@ -488,8 +484,6 @@ void unprep_system(SYSTEM *system,unsigned int flags) {
   list = system->molecule_list;
 
   if (list) {
-
-    settings = system->settings;
 
     for (i=0,moleculep=list->molecules;i<list->n_molecules;i++,moleculep++) {
 
@@ -504,12 +498,24 @@ void unprep_system(SYSTEM *system,unsigned int flags) {
 
   unresolve_system(system);
 
+  if (system->template) {
+
+    unprep_molecule(system->template,settings);
+  }
+
   free_atomlist(system->selection);
+
+  system->selection = NULL;
+
+  free_list(system->active_atoms);
+
+  system->active_atoms = NULL;
 
   free(system->coords);
 
-  system->selection = NULL;
   system->coords = NULL;
+
+  system->prepped = 0;
 }
 
 
@@ -577,6 +583,9 @@ static void init_system(SYSTEM *system) {
 
   system->id = 0;
 
+  system->prepped = 0;
+  system->score_prepped = 0;
+
   strcpy(system->name,"system");
 
   system->settings = NULL;
@@ -586,9 +595,14 @@ static void init_system(SYSTEM *system) {
   system->ligand = NULL;
   system->symmetry = NULL;
 
+  system->site_ligand = NULL;
+
   system->molecule_list = NULL;
 
   system->selection = NULL;
+  system->active_atoms = NULL;
+
+  system->template_match = NULL;
 
   system->score = 0.0;
   system->ref_score = 0.0;
@@ -604,6 +618,8 @@ static void init_system(SYSTEM *system) {
   system->min_ds = 0.0;
 
   system->coords = NULL;
+
+  system->dof = 0;
 }
 
 
@@ -616,6 +632,9 @@ static void setup_system(SYSTEM *system,MOLECULE *protein,MOLECULE *water,MOLECU
   system->water = water;
   system->ligand = ligand;
   system->symmetry = symmetry;
+
+  system->site_ligand = settings->sysmols->site_ligand;
+  system->template = settings->sysmols->template;
     
   system->molecule_list = alloc_molecule_list();
 
@@ -625,6 +644,8 @@ static void setup_system(SYSTEM *system,MOLECULE *protein,MOLECULE *water,MOLECU
   add_molecule_to_list(system->molecule_list,system->water);
   add_molecule_to_list(system->molecule_list,system->ligand);
   add_molecule_to_list(system->molecule_list,system->symmetry);
+
+  system->dof = settings->dof;
 }
 
 
@@ -667,6 +688,8 @@ static void select_system_atoms(SYSTEM *system) {
 
     add_atomlist_to_atomlist(system->selection,molecule->selection);
   }
+
+  system->active_atoms = system_active_atoms(system);
 }
 
 
@@ -748,7 +771,9 @@ static void write_system(PLI_FILE *file,SYSTEM *system,enum OUTPUT_FORMAT oforma
       write_line(file,",");
     }
 
-    write_system_scores(file,system,oformat,oflags);
+    // TODO: maybe change this at some point so the sfunc is argument of write_system (and output_system)
+
+    write_system_scores(file,system);
   }
 
   write_line(file,(oformat == JSON) ? "}}\n" : "\n");
@@ -804,4 +829,67 @@ static ATOMLIST* extended_system_atomlist(SYSTEM *system) {
   }
 
   return(list);
+}
+
+
+
+GRID* system_grid(SYSTEM *system,double spacing,double padding) {
+
+  GRID *grid;
+
+  if (system->site_ligand) {
+
+    grid = alist2grid(system->site_ligand->active_atoms,spacing,(params_get_parameter("site_radius"))->value.d+padding,NULL);
+
+  } else if (system->protein) {
+
+    grid = alist2grid(system->protein->active_atoms,spacing,padding,NULL);
+
+  } else if (system->ligand) {
+
+    grid = alist2grid(system->ligand->active_atoms,spacing,(params_get_parameter("site_radius"))->value.d,NULL);
+    
+  } else {
+    
+    error_fn("%s: cannot define system grid",__func__);
+  }
+
+  return(grid);
+}
+
+
+
+LIST* system_active_atoms(SYSTEM *system) {
+
+  int i,j;
+  LIST *alist;
+  MOLECULE_LIST *list;
+  ATOM **atom,**item;
+  MOLECULE **moleculep,*molecule;
+
+  if (system->active_atoms) {
+
+    error_fn("%s: system already has active atoms defined",__func__);
+  }
+
+  alist = new_list("system active atoms",sizeof(ATOM*),0);
+
+  list = system->molecule_list;
+
+  for (i=0,moleculep=list->molecules;i<list->n_molecules;i++,moleculep++) {
+
+    molecule = *moleculep;
+
+    if (molecule->active_atoms) {
+
+      for (j=0,atom=(ATOM**)molecule->active_atoms->items;j<molecule->active_atoms->n_items;j++,atom++) {
+
+	item = (ATOM**) add_list_item(alist);
+
+	*item = *atom;
+      }
+    }
+  }
+
+  return(alist);
 }

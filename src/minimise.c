@@ -1,4 +1,4 @@
-// Copyright 2015 Astex Therapautics Ltd.
+// Copyright 2015 Astex Therapeutics Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -50,7 +50,6 @@ static void init_bracket(MIN_BRACKET*,DOF_LIST*);
 static double score_line_shift(DOF_LIST*,SYSTEM*,double,PLI_SFUNC*);
 static void set_dof_list_gradients(DOF_LIST*,SYSTEM*,PLI_SFUNC*);
 static int set_dof_list_conjugate_gradients(DOF_LIST*,SYSTEM*);
-static void set_dof_gradient(DOF*,SYSTEM*,PLI_SFUNC*);
 
 
 
@@ -75,12 +74,7 @@ void minimise(SYSTEM *system,PLI_SFUNC *sfunc,int max_iter) {
 
   coords = get_list_coords(selection);
 
-  if (minimise_settings->tether_atoms) {
-
-    setup_list_atom_tethers(selection,minimise_settings->tether_k);
-  }
-
-  list = setup_dof_list(system,minimise_settings->space);
+  list = setup_dof_list(system);
 
   if ((list) && (list->n_variables)) {
 
@@ -113,7 +107,6 @@ void minimise(SYSTEM *system,PLI_SFUNC *sfunc,int max_iter) {
 
   free(coords);
 }
-
 
 
 
@@ -176,7 +169,7 @@ static int take_minimise_step(DOF_LIST *list,SYSTEM *system,enum MINIMISATION_AL
     flag = take_minimise_step_cg(list,system,sfunc);
   }
 
- return(flag);
+  return(flag);
 }
 
 
@@ -371,7 +364,7 @@ static double golden_section_search(DOF_LIST *list,SYSTEM *system,MIN_BRACKET *b
 
   n = 0;
 
-  while (fabs(x3-x0) > GOLDEN_SECTION_TOLERANCE*(fabs(x1)+fabs(x2))) {
+  while ((fabs(x3-x0) > GOLDEN_SECTION_TOLERANCE*(fabs(x1)+fabs(x2))) && (fabs(x3-x0) > 1.0E-10)) {
 
     if (f2 < f1) {
 
@@ -462,7 +455,7 @@ static void set_dof_list_gradients(DOF_LIST *list,SYSTEM *system,PLI_SFUNC *sfun
 
   for (i=0,variable=list->variables;i<list->n_variables;i++,variable++) {
 
-    set_dof_gradient(variable,system,sfunc);
+    set_dof_score_gradient(variable,system,sfunc);
   }
 }
 
@@ -512,61 +505,4 @@ static int set_dof_list_conjugate_gradients(DOF_LIST *list,SYSTEM *system) {
   }
   
   return(0);
-}
-
-
-
-static void set_dof_gradient(DOF *variable,SYSTEM *system,PLI_SFUNC *sfunc) {
-
-  double score,score1,score2,fd1,fd2;
-
-  score = system->score;
-
-  store_positions(variable->atomlist,variable->pos,variable->u,variable->v,variable->w);
-
-  apply_dof_shift(variable,-variable->fd_shift);
-
-  score_system(system,sfunc);
-
-  score1 = system->score;
-
-  restore_positions(variable->atomlist,variable->pos,variable->u,variable->v,variable->w);
-
-  apply_dof_shift(variable,variable->fd_shift);
-
-  score_system(system,sfunc);
-
-  score2 = system->score;
-
-  restore_positions(variable->atomlist,variable->pos,variable->u,variable->v,variable->w);
-
-  fd1 = (score - score1)/0.00001;
-  fd2 = (score2 - score)/0.00001;
-
-  if ((fd1 < 0.0) && (fd2 > 0.0)) {
-
-    // minimum:
-
-    variable->fd = 0.0;
-
-  } else if ((fd1 > 0.0) && (fd2 < 0.0)) {
-
-    // maximum:
-
-    variable->fd = 0.0;
-
-  } else if ((fd1 > 0.0) && (fd2 > 0.0)) {
-
-    // uphill:
-
-    variable->fd = fd1;
-
-  } else {
-
-    // downhill:
-
-    variable->fd = fd2;
-  }
-
-  system->score = score;
 }

@@ -1,4 +1,4 @@
-// Copyright 2015 Astex Therapautics Ltd.
+// Copyright 2015 Astex Therapeutics Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,18 +17,15 @@
 #include "pli.h"
 
 
-
-static PLI_PARAM *pli_params = NULL;
-static n_pli_params = 0;
-static n_alloc_pli_params = 0;
+static LIST *pli_params = NULL;
 
 
 
 static void params_read(char*,int);
 static void params_set_defaults(void);
 static void params_process_file(char*);
-static void params_process_command_line(int,char**);
-static void params_set_parameter(PLI_PARAM*,char*);
+static void params_process_command_line(int,char**,int);
+static void params_inherit(void);
 
 
 
@@ -39,7 +36,7 @@ void run_help(SETTINGS *settings) {
 
   printf("PLI COMMAND-LINE HELP\n\n");
 
-  for (i=0,param=pli_params;i<n_pli_params;i++,param++) {
+  for (i=0,param=(PLI_PARAM*) pli_params->items;i<pli_params->n_items;i++,param++) {
 
     if (param->exposed) {
 
@@ -62,21 +59,27 @@ void params_init(int nargs,char **args) {
   sprintf(params_file_standard,"%s/params/parameters.pli",pli_dir);
   sprintf(params_file_custom,"%s/params/parameters_custom.pli",pli_dir);
 
+  pli_params = new_list("pli parameters",sizeof(PLI_PARAM),0);
+
   params_read(params_file_standard,1);
   params_read(params_file_custom,0);
 
+  condense_list(pli_params);
+
   params_set_defaults();
 
-  params_process_command_line(nargs,args);
+  params_process_command_line(nargs,args,0);
+
+  params_inherit();
 }
 
 
 
 static void params_read(char *filename,int check) {
 
-  int n_read;
+  int n_read,pos,i;
   char line[MAX_LINE_LEN],type_line[MAX_LINE_LEN],purpose_line[MAX_LINE_LEN],valid_values_line[MAX_LINE_LEN];
-  char default_value_line[MAX_LINE_LEN],exposed_line[MAX_LINE_LEN],name[40];
+  char default_value_line[MAX_LINE_LEN],exposed_line[MAX_LINE_LEN],name[40],synonyms[MAX_LINE_LEN],*word,*synonym;
   PLI_FILE *file;
   PLI_PARAM *param;
 
@@ -86,7 +89,7 @@ static void params_read(char *filename,int check) {
 
     if (check) {
 
-      error_fn("couldn't open settings file '%s'",filename);
+      error_fn("%s: couldn't open settings file '%s'",__func__,filename);
 
     } else {
 
@@ -118,27 +121,7 @@ static void params_read(char *filename,int check) {
       if (read_line(exposed_line,MAX_LINE_LEN,file) == NULL)
 	break;
 
-      // (re)alloc memory for pli_params:
-
-      if (n_alloc_pli_params == 0) {
-
-	n_alloc_pli_params += 100;
-	
-	pli_params = (PLI_PARAM*) calloc(n_alloc_pli_params,sizeof(PLI_PARAM));
-	
-      } else if (n_pli_params == n_alloc_pli_params) {
-	
-	n_alloc_pli_params += 100;
-	
-	pli_params = (PLI_PARAM*) realloc(pli_params,n_alloc_pli_params*sizeof(PLI_PARAM));
-      }
-      
-      if (pli_params == NULL) {
-	
-	error_fn("params_read: out of memory (re)allocating pli_params");
-      }
-
-      param = pli_params + n_pli_params;
+      param = (PLI_PARAM*) add_list_item(pli_params);
 
       // set param values:
 
@@ -149,13 +132,29 @@ static void params_read(char *filename,int check) {
       n_read += sscanf(default_value_line,"%*[^:]: %[^\n]",param->default_value);
       n_read += sscanf(exposed_line,"%*[^:]: %d",&(param->exposed));
 
-      if (n_read == 6) {
+      if (n_read != 6) {
 
-	n_pli_params++;
+	error_fn("%s: corrupt parameter definition for '%s'\n",__func__,param->name);
+      }
+
+      if (sscanf(line+1,"%s [%[^]]]",param->name,synonyms) == 2) {
+
+	pos = 0;
+
+	param->synonyms = new_list("synonyms",50*sizeof(char),0);
+
+	while (word = nextword(synonyms,',',&pos)) {
+
+	  synonym = (char*) add_list_item(param->synonyms);
+
+	  strcpy(synonym,word);
+	}
+
+	condense_list(param->synonyms);
 
       } else {
 
-	error_fn("params_read: corrupt parameter definition for '%s'\n",param->name);
+	param->synonyms = NULL;
       }
     }
   }
@@ -170,7 +169,7 @@ static void params_set_defaults(void) {
   int i;
   PLI_PARAM *param;
 
-  for (i=0,param=pli_params;i<n_pli_params;i++,param++) {
+  for (i=0,param=(PLI_PARAM*) pli_params->items;i<pli_params->n_items;i++,param++) {
 
     params_set_parameter(param,param->default_value);
   }
@@ -221,40 +220,90 @@ static void params_process_file(char *filename) {
 
 
 
-static void params_process_command_line(int nargs,char **args) {
+static void params_process_command_line(int nargs,char **args,int i) {
 
-  int i;
   char **arg,*name;
   PLI_PARAM *param;
 
-  for (i=0,arg=args;i<nargs;i++,arg++) {
+  if (i >= nargs) {
 
-    if ((*arg)[0] == '-') {
+    return;
+  }
 
-      name = (*arg) + 1;
+  arg = args + i;
 
-      if (!strcmp(name,"settings")) {
+  if (((*arg)[0] == '-') && (!isdigit((*arg)[1]))) {
 
-	params_process_file(*(arg+1));
+    name = (*arg) + 1;
 
-      } else if ((!strcmp(name,"h")) || (!strcmp(name,"help"))) {
+    if (!strcmp(name,"settings")) {
 
-	param = params_get_parameter("mode");
+      params_process_file(*(arg+1));
 
-	params_set_parameter(param,"help");
+    } else if ((!strcmp(name,"h")) || (!strcmp(name,"help"))) {
+      
+      param = params_get_parameter("mode");
+      
+      params_set_parameter(param,"help");
+      
+    } else {
+      
+      param = params_get_parameter(name);
+      
+      if (param) {
+	
+	params_set_parameter(param,*(arg+1));
+	
+      } else {
+	
+	warning_fn("params_process_command_line: skipping unknown parameter '%s'",name); 
+      }
+    }
+
+    params_process_command_line(nargs,args,i+2);
+
+  } else {
+
+    params_process_command_line(nargs,args,i+1);
+  }
+}
+
+
+
+static void params_inherit(void) {
+
+  int i;
+  char iname[MAX_LINE_LEN];
+  PLI_PARAM *param,*iparam;
+
+  for (i=0,param=(PLI_PARAM*) pli_params->items;i<pli_params->n_items;i++,param++) {
+
+    if ((!strncmp(param->default_value,"inherit",7)) && (!strncmp(param->value.s,"inherit",7))) {
+
+      if (sscanf(param->default_value,"inherit %s",iname)) {
+
+	iparam = params_get_parameter(iname);
+
+	if ((!strcmp(param->type,"integer")) && (!strcmp(iparam->type,"integer"))){
+
+	  param->value.i = iparam->value.i;
+
+	} else if ((!strcmp(param->type,"double")) && (!strcmp(iparam->type,"double"))){
+	  
+	  param->value.d = iparam->value.d;
+	  
+	} else if ((!strcmp(param->type,"string")) && (!strcmp(iparam->type,"string"))) {
+	  
+	  strcpy(param->value.s,iparam->value.s);
+	  
+	} else {
+	  
+	  error_fn("%s: corrupt parameter definition for '%s' (1)",__func__,param->name);
+	}
 
       } else {
 
-	param = params_get_parameter(name);
-
-	if (param) {
-
-	  params_set_parameter(param,*(arg+1));
-
-	} else {
-
-	  warning_fn("params_process_command_line: skipping unknown parameter '%s'",name); 
-	}
+	error_fn("%s: corrupt parameter definition for '%s' (2)\n",__func__,param->name);
       }
     }
   }
@@ -264,25 +313,58 @@ static void params_process_command_line(int nargs,char **args) {
 
 PLI_PARAM* params_get_parameter(char *name) {
 
-  int i;
-  PLI_PARAM *param;
+  int i,j,n_matched_params;
+  char *synonym;
+  PLI_PARAM *param, *matched_param;
 
-  for (i=0,param=pli_params;i<n_pli_params;i++,param++) {
+  n_matched_params = 0;
+
+  for (i=0,param=(PLI_PARAM*) pli_params->items;i<pli_params->n_items;i++,param++) {
 
     if (!strcmp(param->name,name)) {
 
       return(param);
     }
+
+    if (!strncmp(param->name, name, strlen(name))) {
+
+      matched_param = param;
+
+      n_matched_params++;
+    }
+
+    if (param->synonyms) {
+
+      for (j=0;j<param->synonyms->n_items;j++) {
+
+	synonym = get_list_item(param->synonyms,j);
+
+	if (!strcmp(synonym,name)) {
+
+	  return(param);
+	}
+      }
+    }
   }
 
-  return(NULL);
+  if (n_matched_params == 1) {
+
+    return(matched_param);
+  }
+
+  error_fn("params_get_parameter: no such parameter '%s'",name);
 }
 
 
 
-static void params_set_parameter(PLI_PARAM *param,char *value) {
+
+void params_set_parameter(PLI_PARAM *param,char *value) {
 
   int flag;
+
+  // always store text value:
+
+  strcpy(param->value.s,value);
 
   if (!strcmp(param->type,"integer")) {
 
@@ -292,11 +374,7 @@ static void params_set_parameter(PLI_PARAM *param,char *value) {
 
     flag = sscanf(value,"%lf",&(param->value.d));
 
-  } else if (!strcmp(param->type,"string")) {
-
-    strcpy(param->value.s,value);
-
-  } else {
+  } else if (strcmp(param->type,"string")) {
 
     error_fn("params_set_parameter: unknown parameter type '%s'",param->type);
   }

@@ -1,4 +1,4 @@
-// Copyright 2015 Astex Therapautics Ltd.
+// Copyright 2015 Astex Therapeutics Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@ static long int locate_next_mdl_molecule(PLI_FILE*,int);
 static void read_mdl_atom(char*,MOLECULE*,ATOM_TYPING_SCHEME*,int);
 static void read_mdl_bond(char*,MOLECULE*);
 static void read_mdl_water(char*,MOLECULE*,ATOM_TYPING_SCHEME*);
-static void write_mdl_atom(PLI_FILE*,ATOM*);
+static void write_mdl_atom(PLI_FILE*,ATOM*,ATOM_TYPING_SCHEME*);
 
 
 
@@ -65,6 +65,105 @@ MOLECULE* read_mdl_molecule(char *filename) {
   close_file(mdlfile);
 
   return(molecule);
+}
+
+
+
+void write_mdl_molecule(MOLECULE *molecule,char *filename) {
+
+  error_fn("%s: not implemented yet",__func__);
+}
+
+
+
+void write_mdl_atom_list(PLI_FILE *file,ATOMLIST *atomlist, char *mol_name, int write_hydrogens, int n_properties, ...) {
+
+  int i,j,id1,id2;
+  ATOM **atom;
+  BOND **bond;
+  BONDLIST *bondlist;
+  MOLECULE_PROPERTY *mp;
+  ATOM_TYPING_SCHEME *scheme;
+
+  // create a new list of output atoms as connected hydrogens will be added to it
+  ATOMLIST *output_atoms;
+
+  if (write_hydrogens) {
+    output_atoms = alloc_atomlist();
+    init_atomlist(output_atoms);
+    copy_atomlist(atomlist, output_atoms);
+    for (i=0; i<atomlist->natoms; i++){
+      ATOM *a = atomlist->atom[i];
+      for (j=0; j<a->h_connections->natoms; j++) {
+        ATOM *ha = a->h_connections->atom[j];
+        if (!atom_in_list(output_atoms, ha)) {
+          add_atom_to_list(output_atoms, ha, ha->flags);
+        }
+      }
+    }
+  } else {
+    output_atoms = atomlist;
+  }
+
+  bondlist = atomlist2bondlist(output_atoms);
+
+  //write_line(file,"%s\n","pli mdl mol file");
+  write_line(file,"%s\n", mol_name);
+  write_line(file,"\n");
+  write_line(file,"\n");
+  write_line(file,"%3d%3d  0     0  0              0 V2000\n",output_atoms->natoms,bondlist->nbonds);
+
+  scheme = get_atom_typing_scheme();
+
+  for (i=0,atom=output_atoms->atom;i<output_atoms->natoms;i++,atom++) {
+    write_mdl_atom(file,*atom,scheme);
+  }
+
+  //bonds
+  for (i=0,bond=bondlist->bond;i<bondlist->nbonds;i++,bond++) {
+
+    id1 = atomlist_index(output_atoms,(*bond)->atom1);
+    id2 = atomlist_index(output_atoms,(*bond)->atom2);
+
+    if ((id1 != -1) && (id2 != -2)) {
+
+      write_line(file,"%3d%3d%3d  0  0  0  0\n",id1+1,id2+1,(*bond)->type);
+
+    } else {
+
+      warning_fn("write_mdl_atom_list: cannot find atom(s) in list");
+    }
+  }
+
+
+  write_line(file,"M  END\n");
+
+  if (n_properties > 0) {
+    va_list arguments;
+    va_start(arguments, n_properties);
+    for (i=0; i<n_properties; i++) {
+      write_line(file, "\n");
+      mp = va_arg(arguments, MOLECULE_PROPERTY*);
+      write_line(file, ">  <%s>\n", mp->name);
+      if (mp->type == 'i') {
+	write_line(file, "%d\n", mp->value.i);
+      }
+      if (mp->type == 'd') {
+	write_line(file, "%.2f\n", mp->value.d);
+      }
+      if (mp->type == 's') {
+	write_line(file, "%s\n", mp->value.s);
+      }
+      write_line(file, "\n");
+    }
+  }
+
+  write_line(file,"$$$$\n");
+
+  free_bondlist(bondlist);
+  if (output_atoms != atomlist) {
+    free_atomlist(output_atoms);
+  }
 }
 
 
@@ -251,7 +350,7 @@ int read_mdl_molecule_fp(MOLECULE *molecule) {
     return(1);
   }
   
-  sscanf(line,"%[^\n]",molecule->name);
+  read_word(line,"%[^\n]",molecule->name);
 
   // skip two next lines:
 
@@ -270,8 +369,15 @@ int read_mdl_molecule_fp(MOLECULE *molecule) {
     return(3);
   }
 
-  read_word(line,"%3d",&natoms);
-  read_word(line+3,"%3d",&nbonds);
+  if (!read_word(line,"%3d",&natoms)) {
+
+    return(3);
+  }
+
+  if (!read_word(line+3,"%3d",&nbonds)) {
+
+    return(3);
+  }
 
   // read atoms:
 
@@ -286,6 +392,16 @@ int read_mdl_molecule_fp(MOLECULE *molecule) {
 
     read_mdl_atom(line,molecule,scheme,i+1);
   }
+  
+  if (molecule->natoms) {
+
+    if (molecule->natoms < molecule->n_alloc_atoms) {
+
+      molecule->atom = (ATOM*) realloc(molecule->atom,(molecule->natoms)*sizeof(ATOM));
+
+      molecule->n_alloc_atoms = molecule->natoms;
+    }
+  }
 
   // read bonds:
 
@@ -298,6 +414,16 @@ int read_mdl_molecule_fp(MOLECULE *molecule) {
 
     read_mdl_bond(line,molecule);
   }
+  
+  if (molecule->nbonds) {
+
+    if (molecule->nbonds < molecule->n_alloc_bonds) {
+
+      molecule->bond = (BOND*) realloc(molecule->bond,(molecule->nbonds)*sizeof(BOND));
+
+      molecule->n_alloc_bonds = molecule->nbonds;
+    }
+  }
 
   // read meta data:
 
@@ -307,6 +433,9 @@ int read_mdl_molecule_fp(MOLECULE *molecule) {
 
     if (!read_line(line,MAX_LINE_LEN,mdlfile)) {
 
+      //
+      molecule->loaded = 1;
+      //
       return(0);
     }
 
@@ -320,28 +449,9 @@ int read_mdl_molecule_fp(MOLECULE *molecule) {
     }
 
   } while (strncmp(line,"$$$$",4));
-  
-  if (molecule->natoms) {
-
-    if (molecule->natoms < molecule->n_alloc_atoms) {
-
-      molecule->atom = (ATOM*) realloc(molecule->atom,(molecule->natoms)*sizeof(ATOM));
-
-      molecule->n_alloc_atoms = molecule->natoms;
-    }
-  }
-  
-  if (molecule->nbonds) {
-
-    if (molecule->nbonds < molecule->n_alloc_bonds) {
-
-      molecule->bond = (BOND*) realloc(molecule->bond,(molecule->nbonds)*sizeof(BOND));
-
-      molecule->n_alloc_bonds = molecule->nbonds;
-    }
-  }
 
   molecule->loaded = 1;
+  molecule->rely_on_bonds = 1;
 
   return(0);
 }
@@ -359,10 +469,10 @@ static void read_mdl_atom(char *line,MOLECULE *molecule,ATOM_TYPING_SCHEME *sche
   atom = molecule->atom + molecule->natoms;
 
   init_atom(atom);
-
-  n_words = sscanf(line,"%lf %lf %lf %s",&(atom->position[0]),&(atom->position[1]),&(atom->position[2]),elname);
-
-  if (n_words != 4) {
+  // "%10.4lf%10.4lf%10.4lf %-2s  0%3d  0  0  0  0  0  %3d
+  n_words = sscanf(line,"%10lf%10lf%10lf%*[ ]%s%*d%*3c%*3c%*3c%*3c%*3c%*3c%3d",
+                   &(atom->position[0]),&(atom->position[1]),&(atom->position[2]),elname, &(atom->type_id_file));
+  if (n_words < 4) {
 
     error_fn("read_mdl_atom: corrupt atom line");
   }
@@ -398,7 +508,9 @@ static void read_mdl_bond(char *line,MOLECULE *molecule) {
   ATOM *atom1,*atom2;
   BOND *bond;
 
-  n_words = sscanf(line,"%d %d %d",&id1,&id2,&btype);
+  n_words = read_word(line,"%3d",&id1);
+  n_words += read_word(line+3,"%3d",&id2);
+  n_words += read_word(line+6,"%3d",&btype);
 
   if (n_words != 3) {
 
@@ -415,7 +527,7 @@ static void read_mdl_bond(char *line,MOLECULE *molecule) {
 
   if ((atom1 == NULL) || (atom2 == NULL)) {
 
-    error_fn("read_mdl_bond: atom(s) not found");
+    error_fn("read_mdl_bond: atom(s) not found (%d,%d)\n%s\n",id1,id2,line);
   }
 
   bond = get_bond(molecule,atom1,atom2);
@@ -483,65 +595,75 @@ static void read_mdl_water(char *line,MOLECULE *molecule,ATOM_TYPING_SCHEME *sch
 
 
 
-void write_mdl_atom_list(PLI_FILE *file,ATOMLIST *atomlist) {
-
-  int i,id1,id2;
-  ATOM **atom;
-  BOND **bond;
-  BONDLIST *bondlist;
-
-  bondlist = atomlist2bondlist(atomlist);
-
-  write_line(file,"%s\n","pli mdl mol file");
-  write_line(file,"\n");
-  write_line(file,"\n");
-  write_line(file,"%3d%3d  0     0  0              0 V2000\n",atomlist->natoms,bondlist->nbonds);
-
-  for (i=0,atom=atomlist->atom;i<atomlist->natoms;i++,atom++) {
-
-    write_mdl_atom(file,*atom);
-  }
-
-  for (i=0,bond=bondlist->bond;i<bondlist->nbonds;i++,bond++) {
-
-    id1 = atomlist_index(atomlist,(*bond)->atom1);
-    id2 = atomlist_index(atomlist,(*bond)->atom2);
-
-    if ((id1 != -1) && (id2 != -2)) {
-
-      write_line(file,"%3d%3d%3d  0  0  0  0\n",id1+1,id2+1,(*bond)->type);
-
-    } else {
-
-      warning_fn("write_mdl_atom_list: cannot find atom(s) in list");
-    }
-  }
-
-  write_line(file,"M  END\n");
-  write_line(file,"$$$$\n");
-
-  free_bondlist(bondlist);
-}
-
-
-
-static void write_mdl_atom(PLI_FILE *file,ATOM *atom) {
+static void write_mdl_atom(PLI_FILE *file,ATOM *atom,ATOM_TYPING_SCHEME *scheme) {
 
   int charge = 0;
+  char elem_name[10];
+  ATOM *carbon;
+  ATOMLIST *conns;
+  BOND *bond;
+  int atom_type = 0;
 
   if ((atom->type) && (atom->type->united_atom)) {
       
+    atom_type = atom->type->id;
     if (atom->type->united_atom->formal_charge != 0) {
 
       charge = 4 - atom->type->united_atom->formal_charge;
     }
 
-  } else {
+    if (atom->type == get_atom_type("Carboxyl =O",scheme)) {
+
+      // sort out carboxyl groups:
+
+      if (atom->connections) {
+
+	conns = atom->connections;
+
+	if (conns->natoms == 1) {
+
+	  carbon = conns->atom[0];
+
+	  bond = get_bond(atom->molecule,atom,carbon);
+
+	  if (bond->type == 1) {
+
+	    charge = 5;
+	  }
+	}
+      }
+
+    } else if ((atom->type == get_atom_type("Amidine =NH2",scheme)) ||
+	       (atom->type == get_atom_type("=NH2 ARG-NH",scheme))) {
+
+      // sort out amidines:
+
+      if (atom->connections) {
+
+	conns = atom->connections;
+
+	if (conns->natoms == 1) {
+
+	  carbon = conns->atom[0];
+
+	  bond = get_bond(atom->molecule,atom,carbon);
+
+	  if (bond->type == 1) {
+
+	    charge = 0;
+	  }
+	}
+      }
+    }
+  } else if (atom->type->element->id != HYDROGEN) {
 
     warning_fn("write_mdl_atom: atom type not set for atom '%s'",atom->name);
   }
 
-  write_line(file,"%10.4lf%10.4lf%10.4lf %-2s  0%3d  0  0  0  0  0  0  0  0  0  0\n",
+  strcpy(elem_name, atom->element->name);
+  title_case(elem_name);
+
+  write_line(file,"%10.4lf%10.4lf%10.4lf %-2s  0%3d  0  0  0  0  0%3d  0  0  0  0\n",
 	     atom->position[0],atom->position[1],atom->position[2],
-	     atom->element->name,charge);
+	     elem_name,charge,atom_type);
 }

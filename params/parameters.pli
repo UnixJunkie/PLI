@@ -1,6 +1,34 @@
 # PLI parameter definitions
 # format is strict
 
+-use_fixed_random_seeds
+  type          : integer
+  purpose       : Identical series of random numbers will be generated, useful for testing stochastic methods
+  valid values  : undefined
+  default value : 0
+  exposed       : 0
+
+-shake_protein
+  type          : integer
+  purpose       : Shakes protein coordinates by adding/subtracting a random value between 10^-10 and 9*10^-10 to avoid perfectly symmetical tetragons
+  valid values  : 0,1
+  default value : 0
+  exposed       : 1
+
+-shake_ligand
+  type          : integer
+  purpose       : Shakes ligand coordinates by adding/subtracting a random value between 10^-10  and 9*10^-10 to avoid perfectly symmetical tetragons
+  valid values  : 0,1
+  default value : 0
+  exposed       : 1
+
+-water_vdw_radius
+  type          : double
+  purpose       : vdw radius of Water added to the atom radii
+  valid values  : in theory any float - probably not a good idea to mess with this
+  default value : 1.4
+  exposed       : 0
+
 -mode
   type          : string
   purpose       : defines the mode in which pli runs
@@ -36,6 +64,13 @@
   default value : undefined
   exposed       : 1
 
+-template
+  type          : string
+  purpose       : Molecule used to position or constrain ligand
+  valid values  : Any valid file containing a molecule in supported file format
+  default value : undefined
+  exposed       : 1
+
 -complexes
   type          : string
   purpose       : file containing a list of paired protein and ligand filenames
@@ -49,6 +84,41 @@
   valid values  : protein,ligand,site (depending on the mode)
   default value : undefined
   exposed       : 1
+
+-ligand_atoms
+  type          : string
+  purpose       : atom ids in ligand that form its selection; can also be name of file containing atom ids; no effect unless selection includes ligand
+  valid values  : comma-separated list of atom ids; no spaces
+  default value : undefined
+  exposed       : 1
+
+-protein_atoms [site_file]
+  type          : string
+  purpose       : atom ids in protein that form its selection; can also be name of file containing atom ids; no effect unless selection includes protein
+  valid values  : comma-separated list of atom ids; no spaces
+  default value : undefined
+  exposed       : 1
+
+-symmetry_atoms
+  type          : string
+  purpose       : atom ids in symmetry that form its selection; can also be name of file containing atom ids; no effect unless selection includes symmetry
+  valid values  : comma-separated list of atom ids; no spaces
+  default value : undefined
+  exposed       : 1
+
+-template_atoms
+  type          : string
+  purpose       : atom ids in template that form its selection; can also be name of file containing atom ids
+  valid values  : comma-separated list of atom ids; no spaces
+  default value : undefined
+  exposed       : 1
+
+-vdw_radii
+  type          : string
+  purpose       : defines type of vdw radii used
+  valid values  : pli,av
+  default value : pli
+  exposed       : 0
 
 -jobname
   type          : string
@@ -73,16 +143,51 @@
 
 -oformat
   type          : string
-  purpose       : controls output format
+  purpose       : controls global output format
   valid values  : formatted,json
   default value : formatted
   exposed       : 1
 
--astyle
+-atom_oformat
   type          : string
-  purpose       : controls style used for outputting atoms
-  valid values  : basic,type,pdb,pliff
-  default value : pliff
+  purpose       : controls atom output style
+  valid values  : formatted,csv,json,pdb (inherited from -oformat if undefined)
+  default value : inherit oformat
+  exposed       : 1
+
+-atom_oflags
+  type          : string
+  purpose       : controls fields to be output for atoms
+  valid values  : basic,pliff,types,stypes
+  default value : basic
+  exposed       : 1
+
+-bond_oformat
+  type          : string
+  purpose       : controls bond output style
+  valid values  : formatted,csv,json (inherited from -oformat if undefined)
+  default value : inherit oformat
+  exposed       : 1
+
+-bond_oflags
+  type          : string
+  purpose       : controls fields to be output for bonds
+  valid values  : basic
+  default value : basic
+  exposed       : 1
+
+-residue_oformat
+  type          : string
+  purpose       : controls residue output style
+  valid values  : formatted,csv,json (inherited from -oformat if undefined)
+  default value : inherit oformat
+  exposed       : 1
+
+-residue_oflags
+  type          : string
+  purpose       : controls fields to be output for residues
+  valid values  : basic
+  default value : basic
   exposed       : 1
 
 -oatoms
@@ -98,6 +203,13 @@
   valid values  : 0,1
   default value : 1
   exposed       : 1
+
+-debug
+  type          : integer
+  purpose       : controls whether debug print statements are executed
+  valid values  : 0,1
+  default value : 0
+  exposed       : 0
 
 -report_alt_types
   type          : integer
@@ -145,7 +257,7 @@
   type          : string
   purpose       : protocol used to assign atom types for ambiguous atoms
   valid values  : random,best
-  default value : random
+  default value : best
   exposed       : 0
 
 -resolve_metals
@@ -162,6 +274,41 @@
   default value : all
   exposed       : 1
 
+-confilter
+  type          : string
+  purpose       : defines how contacts are filtered
+  valid values  : n(none),v(oronoi),l(ineofsight)
+  default value : voronoi
+  exposed       : 0
+
+-concut
+  type          : string
+  purpose       : defines what distance criteria are used to define contacts
+  valid values  : d(istance),v(dw),s(olvent)
+  default value : solvent
+  exposed       : 0
+
+-condist
+  type          : double
+  purpose       : distance cutoff used if concut=distance
+  valid values  : any positive number
+  default value : 6.0
+  exposed       : 0
+
+-convdwtol
+  type          : double
+  purpose       : max contact distance is Rvdw(1)+Rvwd(2)+convdwtol if concut=vdw
+  valid values  : any (positive?) number
+  default value : 0.0
+  exposed       : 0
+
+-conareas
+  type          : string
+  purpose       : defines the method used to calculate the contact areas
+  valid values  : n(none),s(pheres),v(oronoi)
+  default value : voronoi
+  exposed       : 0
+
 -voronoi_contacts
   type          : integer
   purpose       : not sure this does anything
@@ -173,7 +320,7 @@
   type          : integer
   purpose       : turn this option off for approximate areas at significant speed-up
   valid values  : 0,1
-  default value : 1
+  default value : 0
   exposed       : 1
 
 -allow_bad_clashes
@@ -186,6 +333,20 @@
 -allow_covalent_bonds
   type          : integer
   purpose       : if turned on, program exits on really covalent bonds between protein and ligand
+  valid values  : 0,1
+  default value : 0
+  exposed       : 0
+
+-torsion_scheme
+  type          : string
+  purpose       : types of torsion parameters used
+  valid values  : chemscore,pliff
+  default value : chemscore
+  exposed       : 0
+ 
+-use_ref_score
+  type          : integer
+  purpose       : if turned on, the reference score of the system selection (intra scores) are calculated and subtracted from the system scores in the given conformation
   valid values  : 0,1
   default value : 0
   exposed       : 0
@@ -228,29 +389,29 @@
 -site_def_type
   type          : string
   purpose       : controls how the protein site is defined
-  valid values  : ligand,file
+  valid values  : ligand,file,atom_id
   default value : ligand
   exposed       : 1
 
--site_max_dist
+-site_radius [site_max_dist]
   type          : double
   purpose       : maximum distance (Angstrom) from ligand for protein atom to be included in site
   valid values  : any float >3.0
   default value : 6.0
   exposed       : 1
 
--site_ligand_file
+-site_ligand [site_ligand_file]
   type          : string
   purpose       : ligand file used to define protein site atoms
   valid values  : any valid file path
   default value : undefined
   exposed       : 1
 
--site_file
-  type          : string
-  purpose       : file specifying protein atoms to be included in site
-  valid values  : any valid file path
-  default value : undefined
+-site_central_atom_id
+  type          : integer
+  purpose       : Atom id around which site is defined
+  valid values  : undefined
+  default value : -1
   exposed       : 1
 
 -probe_name
@@ -295,6 +456,13 @@
   default value : 26
   exposed       : 1
 
+-dof
+  type          : string
+  purpose       : degrees of freedom during optimisation (will replace -min_space)
+  valid values  : ligand,water,ligand_rigid_body,ligand_torsions,ligand_atoms (can be comma separated list)
+  default value : ligand,water
+  exposed       : 1
+
 -minimise
   type          : integer
   purpose       : controls if the system is minimised
@@ -334,7 +502,21 @@
   type          : double
   purpose       : undefined
   valid values  : undefined
-  default value : 1.0
+  default value : 0.1
+  exposed       : 0
+
+-score_inter
+  type          : integer
+  purpose       : score non-bonded, inter-molecular parts
+  valid values  : 0,1
+  default value : 1
+  exposed       : 0
+
+-score_intra
+  type          : integer
+  purpose       : score bonded, intra-molecular parts
+  valid values  : 0,1
+  default value : 1
   exposed       : 0
 
 -pliff_zero_coeff
@@ -365,6 +547,27 @@
   default value : 0
   exposed       : 0
 
+-pliff_intra_torsion
+  type          : integer
+  purpose       : to turn on intra-molecular torsion terms
+  valid values  : 1,0
+  default value : 1
+  exposed       : 1
+
+-pliff_intra_clash
+  type          : integer
+  purpose       : to turn on intra-molecular clash terms
+  valid values  : 1,0
+  default value : 1
+  exposed       : 1
+
+-pliff_intra_vdw
+  type          : integer
+  purpose       : to turn on intra-molecular (attractive) vdw terms
+  valid values  : 1,0
+  default value : 0
+  exposed       : 1
+
 -use_alpha_potentials
   type          : integer
   purpose       : use alpha dependent potentials in PLIff energy
@@ -379,12 +582,33 @@
   default value : 1
   exposed       : 0
 
--use_clash_potentials
+-pliff_potentials
+  type          : string
+  purpose       : type of PLIff R potential 
+  valid values  : smoothed,fitted,LJ
+  default value : smoothed
+  exposed       : 1
+
+-pliff_lj_clash
   type          : integer
-  purpose       : switch to Lennard-Jones potentials for repulsive part of PLIff distance potential
+  purpose       : when D<Dc, switch to Lennard-Jones function (only for "smoothed" pliff potentials)
   valid values  : 0,1
   default value : 1
   exposed       : 1
+
+-pliff_softness
+  type          : double
+  purpose       : the clash distance is shortened by this amount (A) (only for "fitted" and "LJ" pliff potentials)
+  valid values  : any small float
+  default value : 0.0
+  exposed       : 1
+
+-pliff_r_correction
+  type          : integer
+  purpose       : use r^2 - (r^3/rmax) as expected distribution of A(r)
+  valid values  : 0,1
+  default value : 0
+  exposed       : 0
 
 -r_alpha_correction
   type          : string
@@ -449,11 +673,32 @@
   default value : 30.0
   exposed       : 0
 
+-ff_use_ami_pts
+  type          : integer
+  purpose       : use atomic-mobility-scaled type propensities (Pu and lnPu)
+  valid values  : 0,1
+  default value : 0
+  exposed       : 0
+
+-ff_ami_scaling
+  type          : integer
+  purpose       : scale contact energies according to the atomic mobility of the protein atom involved
+  valid values  : 0,1
+  default value : 0
+  exposed       : 0
+
 -ff_max_stored_potentials
   type          : integer
   purpose       : maximum number of nonbonded ff potentials kept in memory
   valid values  : in theory any integer >1
   default value : 1000
+  exposed       : 0
+
+-custom_mask_dmax
+  type          : double
+  purpose       : cutoff distance used for generating a custom molecule mask
+  valid values  : any positive float
+  default value : 5.0
   exposed       : 0
 
 -id1
@@ -470,9 +715,414 @@
   default value : -1
   exposed       : 0
 
+-eid1
+  type          : integer
+  purpose       : undefined
+  valid values  : undefined
+  default value : -1
+  exposed       : 0
+
+-eid2
+  type          : integer
+  purpose       : undefined
+  valid values  : undefined
+  default value : -1
+  exposed       : 0
+
 -hist_name
   type          : string
   purpose       : undefined
   valid values  : undefined
   default value : R
+  exposed       : 0
+
+# Fragmap parameters
+-ref_ligand
+  type          : string
+  purpose       : reference ligand file, (if defined) the probe will only be placed within [ref_ligand_max_dist] ang. of the mcss_ref_ligand
+  valid values  : undefined
+  default value : undefined
+  exposed       : 1
+  
+-mask
+  type          : string
+  purpose       : the grid points occupied by the mask molecule will be masked. This can be used to find fragment binding positions when core is already bound. The mask molecule is not part of the calculation.
+  valid values  : undefined
+  default value : undefined
+  exposed       : 1
+
+
+-ref_ligand_max_dist
+  type          : double
+  purpose       : Distance from ref_ligand in ang. within which the mcss_ligand is sampled
+  valid values  : undefined
+  default value : 3.0
+  exposed       : 1
+
+# TODO: check if this works with 'field' mode
+-probe
+  type          : string
+  purpose       : name of the atom type or the molecule used as a probe in a field/fragment mapping
+  valid values  : any atom type name/molecule name in the params/probes/molecule file
+  default value : "undefined"
+  exposed       : 1
+
+-n_dihedral_steps
+  type          : integer
+  purpose       : number of steps for a dihedral scan
+  valid values  : undefined
+  default value : 12
+  exposed       : 1
+
+-scan_dihedral
+  type          : integer
+  purpose       : scan dihedral angle of the rotatable bond(s)
+  valid values  : 0,1
+  default value : 0
+  exposed       : 1
+
+-precalculate
+  type          : integer
+  purpose       : Precalculate grids for atom types and score using these grids
+  valid values  : 0,1
+  default value : 0
+  exposed       : 1
+
+-save_intermediate_grids
+  type          : integer
+  purpose       : Save pre-calculated atom type grids
+  valid values  : 0,1
+  default value : 0
+  exposed       : 1
+
+-fragmap_rescore
+  type          : integer
+  purpose       : Rescore the saved positions of the fragment using full PLIff score (when precalcualte =1)
+  valid values  : undefined
+  default value : 1
+  exposed       : 1
+
+-fragmap_rescore_cutoff
+  type          : double
+  purpose       : Per atom maximum grid-based score that triggers a full pliff rescoring (when fragmap_rescore = 1)
+  valid values  : any number
+  default value : -0.02
+  exposed       : 1
+
+-save_cutoff
+  type          : double
+  purpose       : Per atom maximum score for a pose when pose is attemped to be saved
+  valid values  : any number
+  default value : -0.1
+  exposed       : 1
+
+-n_rot_lebedev_axis
+  type          : integer
+  purpose       : Number of rotations around the lebedev axis for the mol_probe. By default, the value is determined based on n_lebedev_poiints
+  valid values  : undefined
+  default value : -1
+  exposed       : 1
+
+-skip_probe_atoms                                  
+  type          : string
+  purpose       : ids of the atoms in the mol_probe that are skipped from the calculation but are used for atom typing
+  valid values  : undefined
+  default value : undefined
+  exposed       : 1
+  
+-fragmap_solvate
+  type          : integer
+  purpose       : place water molecules on favorable positions before scoring a pose
+  valid values  : 0,1
+  default value : 0
+  exposed       : 1
+  
+
+
+# cluster and save settings
+-save_poses
+  type          : integer
+  purpose       : save n_save_poses minimum energy poses
+  valid values  : undefined
+  default value : 0
+  exposed       : 1
+
+-n_saved_poses
+  type          : integer
+  purpose       : Total number of the lowest energy probe positions to save
+  valid values  : undefined
+  default value : 100
+  exposed       : 1
+
+-n_poses_per_orientation
+  type          : integer
+  purpose       : Number of the lowest energy probe positions to save for each orientation
+  valid values  : undefined
+  default value : 0
+  exposed       : 1
+
+-n_poses_per_gridpoint
+  type          : integer
+  purpose       : Number of the lowest energy probe positions to save for each orientation
+  valid values  : undefined
+  default value : 0
+  exposed       : 1
+
+-saved_sdf_file
+  type          : string
+  purpose       : File name for saving poses as sdf
+  valid values  : undefined
+  default value : saved_poses.sdf
+  exposed       : 1
+
+-saved_data_file
+  type          : string
+  purpose       : File name for saving original scores and (re)scores
+  valid values  : undefined
+  default value : saved_score.dat
+  exposed       : 1
+
+-save_diverse_clusters
+  type          : integer
+  purpose       : undefined
+  valid values  : undefined
+  default value : 0
+  exposed       : 1
+
+-n_diverse_poses
+  type          : integer
+  purpose       : Total number of diverse poses saved in clusters with each cluster having poses up to diverse_cluster_size
+  valid values  : undefined
+  default value : 50
+  exposed       : 1
+
+-minimise_clusters
+  type          : integer
+  purpose       : Minimse poses in the cluster at the end of clustering 
+  valid values  : 0,1
+  default value : 0
+  exposed       : 1
+       
+
+-diverse_cluster_size
+  type          : integer
+  purpose       : Maximum number of poses each diverse cluster can have
+  valid values  : undefined
+  default value : 10
+  exposed       : 1
+
+-save_peak_clusters
+  type          : integer
+  purpose       : undefined
+  valid values  : undefined
+  default value : 0
+  exposed       : 1
+
+-n_peaks
+  type          : integer
+  purpose       : Total number of diverse poses saved in clusters with each cluster having poses up to diverse_cluster_size
+  valid values  : any positive int
+  default value : 5
+  exposed       : 1
+
+-peak_cluster_size
+  type          : integer
+  purpose       : Maximum number of poses each peak cluster can have
+  valid values  : undefined
+  default value : 10
+  exposed       : 1
+
+-peak_cluster_diversity
+  type          : double
+  purpose       : How much diverse (in RMSD) the solutions within the peak cluster should be from each other 
+  valid values  : any positive number
+  default value : 1.0
+  exposed       : 1
+
+
+-diverse_sdf_file_prefix
+  type          : string
+  purpose       : filename for saving structures of diverse poses
+  valid values  : undefined
+  default value : diverse_cluster
+  exposed       : 1
+
+-diverse_data_file
+  type          : string
+  purpose       : filename for saving information about diverse clusters
+  valid values  : undefined
+  default value : diverse_clusters.dat
+  exposed       : 1
+
+-cluster_cutoff
+  type          : double
+  purpose       : Distance cutoff in ang. for clustering
+  valid values  : undefined
+  default value : 3.0
+  exposed       : 1
+
+-cluster_dist_type
+  type          : string
+  purpose       : Distance type (rmsd/center_dist) used for clustering
+  valid values  : rmsd,center_dist
+  default value : center_dist
+  exposed       : 1
+
+-cluster_min_dist
+  type          : integer
+  purpose       : Minimum distance with any of the pose in the cluster, if zero then distance to the minimum energy pose in the cluster is used
+  valid values  : 0/1
+  default value : 1
+  exposed       : 1
+
+-merge_clusters
+  type          : integer
+  purpose       : Merge clusters in the end based on the clustering criterion to remove overlapping clusters. This might reduce the total number of poses being saved
+  valid values  : 0,1
+  default value : 0
+  exposed       : 1
+ 
+# Pocket parameters
+
+-pocket_mode
+  type          : string
+  purpose       : name of the pocket algorithm used
+  valid values  : ligsite
+  default value : ligsite
+  exposed       : 1
+
+-pocket_output
+  type          : string
+  purpose       : define what gets output from a pocket run
+  valid values  : map,sitemaps,sites,siteres
+  default value : sites
+  exposed       : 1
+
+-pocket_drug_volume
+  type          : double
+  purpose       : minimum volume of a pocket
+  valid values  : any positive float smaller than pocket_max_volume
+  default value : 60.0
+  exposed       : 1
+
+-pocket_frag_volume
+  type          : double
+  purpose       : minimum volume of a pocket
+  valid values  : any positive float smaller than pocket_max_volume
+  default value : 30.0
+  exposed       : 1
+
+-pocket_probe_radius
+  type          : double
+  purpose       : determines which residues are included in pocket; the maximum distance Rprobe+2*R(water)+R(protein_atom)
+  valid values  : probably shouldn't exceed the default value
+  default value : 1.7
+  exposed       : 0
+
+-pocket_allow_overlap
+  type          : integer
+  purpose       : allows predicted sites to have some overlap
+  valid values  : 1,0
+  default value : 0
+  exposed       : 0
+
+-depth_weighting
+  type          : string
+  purpose       : define which, if any, pocket map function is used to weigh scores/energies
+  valid values  : none,ligsite,digsite,amisite
+  default value : none
+  exposed       : 0
+
+
+
+# LigSite parameters
+
+-ligsite_enclosed
+  type          : integer
+  purpose       : if turned on, vector needs to bump protein in both directions
+  valid values  : 0,1
+  default value : 1
+  exposed       : 1
+
+-ligsite_smoothe
+  type          : integer
+  purpose       : number of smoothing cycles used for ligsite maps
+  valid values  : any integer >= 0
+  default value : 0
+  exposed       : 1
+
+-ligsite_cap_dist
+  type          : integer
+  purpose       : if turned on, vector needs to bump protein within ls_max_dist
+  valid values  : 0,1
+  default value : 0
+  exposed       : 1
+
+-ligsite_max_dist
+  type          : double
+  purpose       : if ls_cap_dist is turned on, vector needs to bump protein within ls_max_dist
+  valid values  : any positive float
+  default value : 8.0
+  exposed       : 1
+
+-ligsite_min_integral
+  type          : double
+  purpose       : minimum integral of a pocket in ligsite mode
+  valid values  : any positive float
+  default value : 600.0
+  exposed       : 0
+
+# DigSite parameters
+
+-digsite_min_integral
+  type          : double
+  purpose       : minimum integral of a pocket in digsite mode
+  valid values  : any positive float
+  default value : 30.0
+  exposed       : 0
+
+-digsite_smoothe
+  type          : integer
+  purpose       : number of smoothing cycles used for digsite maps
+  valid values  : any integer >= 0
+  default value : 1
+  exposed       : 1
+
+# AMISite parameters
+
+-amisite_probe_radius
+  type          : double
+  purpose       : probe radius used when calculating an amisite map
+  valid values  : probably shouldn't exceed the default value
+  default value : 2.6
+  exposed       : 0
+
+-amisite_min_integral
+  type          : double
+  purpose       : minimum integral of a pocket in amisite mode
+  valid values  : any positive float
+  default value : 90.0
+  exposed       : 0
+
+# Gauss site parameters
+
+-gauss_probe_radius
+  type          : double
+  purpose       : probe radius used when calculating a gauss map
+  valid values  : any positive float
+  default value : 1.8
+  exposed       : 0
+
+-gauss_probe_sigma
+  type          : double
+  purpose       : probe 'softness' used when calculating a gauss map
+  valid values  : any positive float
+  default value : 1.0
+  exposed       : 0
+
+-gauss_min_integral
+  type          : double
+  purpose       : minimum integral of a pocket in hybrid mode
+  valid values  : any positive float
+  default value : 3500.0
   exposed       : 0

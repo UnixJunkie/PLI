@@ -1,4 +1,4 @@
-// Copyright 2015 Astex Therapautics Ltd.
+// Copyright 2015 Astex Therapeutics Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -62,6 +62,13 @@ MOLECULE* read_sybyl_molecule(char *filename) {
   molecule->loaded = 1;
 
   return(molecule);
+}
+
+
+
+void write_sybyl_molecule(MOLECULE *molecule,char *filename) {
+
+  error_fn("%s: not implemented yet",__func__);
 }
 
 

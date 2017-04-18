@@ -1,4 +1,4 @@
-// Copyright 2015 Astex Therapautics Ltd.
+// Copyright 2015 Astex Therapeutics Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,12 +17,22 @@
 #include "pli.h"
 #include <zlib.h>
 #include <ctype.h>
+#include <sys/stat.h>
 
 
 
 PLI_FILE *PLI_STDIN;
 PLI_FILE *PLI_STDOUT;
 PLI_FILE *PLI_STDERR;
+
+
+
+static OSTYLE ostyles[] = {
+  { "formatted",   " ",   "",   "",   "%.0s%.0s%s" },
+  { "csv",         ",",   "",   "",   "%.0s%s%.0s" },
+  { "json",        ",",   "{",  "}",  "\"%s\":%s%.0s" },
+  { "last",        "",    "",   "",   "" }
+};
 
 
 
@@ -77,6 +87,25 @@ void warning_fn (char *format, ...) {
 }
 
 
+void debug_print(char *format, ...) {
+
+  va_list args;
+  char message[MAX_LINE_LEN];
+
+  if (!(params_get_parameter("debug"))->value.i) {
+
+    return;
+  }
+
+  va_start(args,format);
+
+  vsprintf(message,format,args);
+
+  write_line(PLI_STDERR,"Debug print:%s\n",message);
+
+  va_end(args);
+}
+
 
 char* get_pli_dir(void) {
 
@@ -92,6 +121,19 @@ char* get_pli_dir(void) {
   return(pli_dir);
 }
 
+
+int is_readable_file(char *name_with_path) {
+  struct stat s;
+  if( stat(name_with_path, &s) == 0)
+  {
+    if(s.st_mode & S_IFREG)
+    {
+      if(s.st_mode & S_IRUSR)
+	return 1;
+    }
+  }
+  return 0;
+}
 
 
 PLI_FILE* new_file(char *filename,FILE *file) {
@@ -257,7 +299,68 @@ int pli_fseek(PLI_FILE *pli_file,long int offset,int origin) {
 
 
 
-void read_word(char *s,const char *format,void *word) {
+LIST* file2lines(char *filename) {
+
+  char fline[MAX_LINE_LEN],*line;
+  PLI_FILE *file;
+  LIST *lines;
+
+  file = open_file(filename,"r");
+
+  if (file == NULL) {
+
+    error_fn("%s: failed to open ff file '%s'",__func__,filename);
+  }
+
+  lines = new_list("lines",MAX_LINE_LEN*sizeof(char),0);
+
+  while (!end_of_file(file)) {
+
+    if (read_line(fline,MAX_LINE_LEN,file) == NULL) {
+
+      break;
+    }
+
+    line = (char*) add_list_item(lines);
+
+    strcpy(line,fline);
+  }
+
+  close_file(file);
+
+  return(lines);
+}
+
+
+
+LIST* filter_lines(LIST *lines_in,char *str) {
+
+  int i;
+  char name[MAX_LINE_LEN],word[MAX_LINE_LEN],*line_in,*line_out;
+  LIST *lines_out;
+
+  sprintf(name,"%s list",str);
+
+  lines_out = new_list(name,lines_in->item_size,0);
+
+  for (i=0;i<lines_in->n_items;i++) {
+
+    line_in = (char*) get_list_item(lines_in,i);
+
+    if ((sscanf(line_in,"%s",word) == 1) && (!strcmp(word,str))) {
+
+      line_out = (char*) add_list_item(lines_out);
+
+      strcpy(line_out,line_in);
+    }
+  }
+
+  return(lines_out);
+}
+
+
+
+int read_word(char *s,const char *format,void *word) {
 
   int len,n_read;
   char subs[MAX_LINE_LEN];
@@ -268,11 +371,11 @@ void read_word(char *s,const char *format,void *word) {
 
     substring(s,0,len,subs);
 
-    sscanf(subs,format,word);
+    return(sscanf(subs,format,word));
 
   } else {
 
-    sscanf(s,format,word);
+    return(sscanf(s,format,word));
   }
 }
 
@@ -362,9 +465,202 @@ enum OUTPUT_FORMAT get_output_format(char *format) {
   } else  if (!strcmp(format,"json")) {
 
     return(JSON);
+
+  } else  if (!strcmp(format,"csv")) {
+
+    return(CSV);
   }
 
   error_fn("get_output_format: no such output format '%s'",format);
+}
+
+
+
+void obj2text(void *obj,char *text,OFIELD *ofields) {
+
+  int len,pos;
+  char field_text[MAX_LINE_LEN];
+  OFIELD *field;
+  OSTYLE *ostyle;
+
+  strcpy(text,"");
+
+  ostyle = NULL;
+
+  field = ofields;
+
+  len = pos = 0;
+
+  while (strcmp(field->name,"last")) {
+
+    if (field->ostyle) {
+
+      ostyle = field->ostyle;
+
+      field->obj2text((void*) obj,field_text,field->format); 
+
+      len += strlen(field_text);
+
+      if (len > MAX_LINE_LEN-5) {
+
+	error_fn("%s: exceeded MAX_LINE_LEN",__func__);
+      }
+
+      (pos == 0) ? sprintf(text,"%s%s",field->ostyle->open,field_text) : sprintf(text+pos,"%s%s",field->ostyle->separator,field_text);
+
+      len = strlen(text);
+
+      pos = len;
+    }
+
+    field++;
+  }
+
+  if (ostyle) {
+
+    sprintf(text+pos,"%s",ostyle->close);
+  }
+}
+
+
+
+OSTYLE* get_ostyle(char *name) {
+
+  OSTYLE *style;
+
+  style = ostyles;
+
+  while (strcmp(style->name,"last")) {
+
+    if (!strcmp(style->name,name)) {
+
+      return(style);
+    }
+
+    style++;
+  }
+
+  return(NULL);
+}
+
+
+
+OGROUP* get_ogroup(OGROUP *groups,char *name) {
+
+  OGROUP *group;
+
+  group = groups;
+
+  while (strcmp(group->name,"last")) {
+
+    if (!strcmp(group->name,name)) {
+
+      return(group);
+    }
+
+    group++;
+  }
+
+  return(NULL);
+}
+
+
+
+OFIELD* get_ofield(OFIELD *ofields,char *name) {
+
+  OFIELD *field;
+
+  field = ofields;
+
+  while (strcmp(field->name,"last")) {
+
+    if (!strcmp(field->name,name)) {
+
+      return(field);
+    }
+
+    field++;
+  }
+
+  return(NULL);
+}
+
+
+
+void init_ofields(OFIELD *ofields) {
+
+  OFIELD *field;
+
+  field = ofields;
+
+  while (strcmp(field->name,"last")) {
+
+    field->ostyle = NULL;
+
+    field++;
+  }
+}
+
+
+
+void set_ofields(OFIELD *ofields,char *style,char *flags) {
+
+  int pos = 0;
+  char *flag,cflags[MAX_LINE_LEN];
+  OFIELD *field;
+
+  strcpy(cflags,flags);
+
+  while (flag = nextword(cflags,',',&pos)) {
+
+    field = get_ofield(ofields,flag);
+
+    if (field) {
+
+      set_ofield(field,style);
+    }
+  }
+}
+
+
+
+void set_ofield(OFIELD *field,char *style) {
+
+  OSTYLE* ostyle;
+
+  ostyle = get_ostyle(style);
+
+  if (ostyle) {
+
+    field->ostyle = ostyle;
+
+    sprintf(field->format,ostyle->format,field->name,field->uformat,field->fformat);
+
+  } else {
+
+    error_fn("%s: no such output format '%s'",__func__,style);
+  }
+}
+
+
+
+void set_ogroups(OGROUP *ogroups,char *style,char *flags) {
+
+  int pos = 0;
+  char *flag,cflags[MAX_LINE_LEN];
+  OGROUP *group;
+
+  strcpy(cflags,flags);
+
+  while (flag = nextword(cflags,',',&pos)) {
+
+    group = get_ogroup(ogroups,flag);
+
+    if (group) {
+
+      set_ofields(group->ofields,style,group->fields);
+    }
+  }
 }
 
 

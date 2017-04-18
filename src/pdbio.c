@@ -1,4 +1,4 @@
-// Copyright 2015 Astex Therapautics Ltd.
+// Copyright 2015 Astex Therapeutics Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -189,6 +189,12 @@ static void read_pdb_atom(char *line,MOLECULE *molecule,ATOM_TYPING_SCHEME *sche
 
     warning_fn("read_pdb_atom: skipping ATOM line (duplicate atom):\n%s",line);
 
+    return;
+  }
+
+  // read only the first altloc for disordered atoms
+  if ((atom->altloc != ' ') && (atom->altloc != 'A')) {
+    warning_fn("%s: alternate location found, storing only the first Altloc:\n%s", __func__, line);
     return;
   }
 
@@ -691,10 +697,13 @@ ELEMENT* pdb_atom_element(ATOM *atom,ATOM_TYPING_SCHEME *scheme) {
 
 int write_pdb_molecule(MOLECULE *molecule,char *filename) {
 
-  int i,j,id,maxid,maxsubid;
+  int i,j,id,output_hydrogens;
+  char *output;
+  ATOM *atom,*fatom;
+  BONDLIST *bond_list;
+  ATOMLIST *atom_list;
+  BOND *bond;
   PLI_FILE *pdbfile;
-  ELEMENT *elements;
-  ATOM *atom,vatom;
 
   pdbfile = open_file(filename,"w");
 
@@ -703,74 +712,55 @@ int write_pdb_molecule(MOLECULE *molecule,char *filename) {
     return(1);
   }
 
-  maxid = 0;
-  maxsubid = 0;
+  output = (params_get_parameter("output"))->value.s;
+
+  output_hydrogens = word_in_text("hydrogens",output,',');
+
+  fatom = (get_field_probe("H2O"))->atom;
+
+  fatom->element = get_element("H",NULL);
+
+  fatom->altloc = ' ';
+
+  id = 1;
 
   for (i=0,atom=molecule->atom;i<molecule->natoms;i++,atom++) {
+      
+    if (atom->element->id != HYDROGEN) {
 
-    if (!(atom->flags & SKIP_ATOM)) {
+      atom->id = id;
 
       write_pdb_atom(pdbfile,atom);
+      
+      id++;
 
-      if (atom->id > maxid)
-	maxid = atom->id;
-
-      if ((atom->chain == 'X') && (atom->subid > maxsubid))
-	maxsubid = atom->subid;
     }
   }
 
-  init_atom(&vatom);
+  // write bonds
 
-  vatom.element = get_element("H",NULL);
-  strcpy(vatom.subname,"UVW");
-  vatom.chain = 'X';
-  vatom.subid = maxsubid + 1;
+  for (i=0,bond=molecule->bond;i<molecule->nbonds;i++,bond++) {
 
-  id = maxid + 1;
-
-  for (i=0,atom=molecule->atom;i<molecule->natoms;i++,atom++) {
-
-    if (!(atom->flags & SKIP_ATOM)) {
-
-      if (atom->geometry != NULL) {
-
-	if (atom->geometry->u_axis) {
-
-	  vatom.id = id;
-
-	  strcpy(vatom.name," XU ");
-
-	  for (j=0;j<3;j++) {
-
-	    vatom.position[j] = atom->position[j] + atom->u[j];
-	  }
-	  
-	  //write_pdb_atom(pdbfile,&vatom);
-
-	  //id++;
-	}
-
-	if (atom->geometry->v_axis) {
-
-	  vatom.id = id;
-
-	  strcpy(vatom.name," XV ");
-
-	  for (j=0;j<3;j++) {
-
-	    vatom.position[j] = atom->position[j] + atom->v[j];
-	  }
-
-	  //write_pdb_atom(pdbfile,&vatom);
-
-	  //id++;
-	}
-      }
-    }
+    write_pdb_bond(pdbfile,bond);
   }
+
+  /*
+  atom_list = molecule2atoms(molecule);
+  bond_list = atomlist2bondlist(atom_list);
+
+  for (i=0; i<bond_list->nbonds; i++){
+
+    bond = bond_list->bond[i];
+
+    write_pdb_bond(pdbfile, bond);
+  }
+
+  free_atomlist(atom_list);
+  free_bondlist(bond_list);
+  */
 
   close_file(pdbfile);
+  return(0);
 }
 
 
@@ -871,6 +861,37 @@ void write_pdb_atom_list(PLI_FILE *pli_file,ATOMLIST *atomlist,unsigned long int
   write_line(pli_file,"END\n");
 
   free_bondlist(bondlist);
+}
+
+
+
+void write_pdb_bond(PLI_FILE *pli_file, BOND *bond) {
+
+  ATOM *atom1, *atom2;
+
+  atom1 = bond->atom1;
+  atom2 = bond->atom2;
+
+  if ((atom1->flags & SKIP_ATOM) || (atom2->flags & SKIP_ATOM)){
+    return;
+  }
+
+  // AstexViewer only reads CONECT records one way round it would appear:
+
+  if (atom1->id > atom2->id) {
+
+    atom1 = bond->atom2;
+    atom2 = bond->atom1;
+  }
+
+  write_line(pli_file,"CONECT%5d",atom1->id);
+
+  for (int i=0;i<bond->type;i++) {
+
+    write_line(pli_file,"%5d",atom2->id);
+  }
+
+  write_line(pli_file, "\n");
 }
 
 

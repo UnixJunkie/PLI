@@ -1,4 +1,4 @@
-// Copyright 2015 Astex Therapautics Ltd.
+// Copyright 2015 Astex Therapeutics Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -29,13 +29,12 @@ static HBOND_GEOMETRY hbond_geometries[] = { { POINT_HBOND_GEOMETRY,      "POINT
 
 
 
-static double contact_angle(double*,double*,int);
+//static double contact_angle(double*,double*,int);
 static double projected_contact_angle(double*,double*,double*,int);
 static void alloc_atom_geometries(ATOM_TYPING_SCHEME*);
 static void init_atom_geometry(ATOM_GEOMETRY*);
 static int check_atom_geometry(ATOM*,ATOM_GEOMETRY*);
 static int check_atom_hbond_geometry(ATOM*,HBOND_GEOMETRY*);
-static int set_atom_axes(ATOM*);
 
 
 
@@ -262,7 +261,7 @@ void write_contact_geometry(PLI_FILE *file,CONTACT *contact,enum OUTPUT_FORMAT o
 
 
 
-static double contact_angle(double *v1,double *v2,int symmetry) {
+double contact_angle(double *v1,double *v2,int symmetry) {
 
   double angle;
 
@@ -417,7 +416,7 @@ static int check_atom_hbond_geometry(ATOM *atom,HBOND_GEOMETRY *hbond_geometry) 
 
 
 
-static int set_atom_axes(ATOM *atom) {
+int set_atom_axes(ATOM *atom) {
 
   double v1[4],v2[4],v3[4],v4[4],v5[4],v6[4],v7[4];
   ATOM *atom1,*atom2;

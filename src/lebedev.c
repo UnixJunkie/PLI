@@ -1,4 +1,4 @@
-// Copyright 2015 Astex Therapautics Ltd.
+// Copyright 2015 Astex Therapeutics Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,6 +15,86 @@
 
 
 #include "pli.h"
+
+
+
+LIST* get_lebedev_vectors(int n_points) {
+
+  int i,flag,order;
+  double *point;
+  char *pli_dir,name[MAX_LINE_LEN],filename[MAX_LINE_LEN],line[MAX_LINE_LEN],word[MAX_LINE_LEN];
+  PLI_FILE *file;
+  LIST *list;
+
+  sprintf(name,"lebedev points %d",n_points);
+
+  list = get_list(name,"lebedev");
+
+  if (list) {
+
+    return(list);
+  }
+
+  pli_dir = get_pli_dir();
+
+  sprintf(filename,"%s/params/lebedev.pli",pli_dir);
+
+  file = open_file(filename,"r");
+
+  if (file == NULL) {
+
+    error_fn("%s: couldn't open file '%s'",__func__,filename);
+  }
+
+  list = new_list(name,4*sizeof(double),0);
+
+  while (!end_of_file(file)) {
+
+    if (read_line(line,MAX_LINE_LEN,file) == NULL)
+      break;
+
+    flag = sscanf(line,"%s",word);
+
+    if (flag != EOF) {
+
+      if (!strcmp(word,"Order")) {
+
+	sscanf(line,"%*s %*s %d",&order);
+
+	if (order == n_points) {
+
+	  for (i=0;i<n_points;i++) {
+
+	    if (read_line(line,MAX_LINE_LEN,file) == NULL) {
+
+	      error_fn("%s: not enough points",__func__);
+	    }
+
+	    point = (double*) add_list_item(list);
+
+	    if (sscanf(line,"%lf %lf %lf",point,point+1,point+2) != 3) {;
+
+	      error_fn("%s: corrupted line:\n%s",__func__,line);
+	    }
+	  }
+
+	  point[3] = 1.0;
+	}
+      }
+    }
+  }
+
+  close_file(file);
+
+  if (list->n_items == 0) {
+
+    error_fn("%s: no sphere points for order=%d",__func__,n_points);
+  }
+
+  store_list(list,"lebedev");
+
+  return(list);
+}
 
 
 

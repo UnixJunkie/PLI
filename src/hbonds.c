@@ -1,4 +1,4 @@
-// Copyright 2015 Astex Therapautics Ltd.
+// Copyright 2015 Astex Therapeutics Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -33,8 +33,8 @@
 #define HBOND_MISMATCH_ENERGY 10.0
 #define IDEAL_METAL_COORD_ENERGY -20
 #define HBOND_POLAR_AREA_ENERGY -0.5
-#define HBOND_CONTACT 1
-#define METAL_CONTACT 2
+//#define HBOND_CONTACT 1
+//#define METAL_CONTACT 2
 
 
 
@@ -45,7 +45,7 @@ static double **sphere_points = NULL;
 static void alloc_atom_coordination(ATOM*);
 static void init_atom_coordination(ATOM_COORDINATION*);
 static void write_coordination_atom(FILE*,ATOM*);
-static int hbond_type_match(ATOM*,ATOM*);
+//static int hbond_type_match(ATOM*,ATOM*);
 static double calc_exposed_polar_area(ATOM*);
 
 
@@ -120,7 +120,7 @@ void calc_atom_coordination(ATOM *atom1) {
 
 	flags2 = type2->flags;
 
-	if (hbond_flags_match(flags1,flags2)) { 
+	if (hbond_flags_match(flags1,flags2,1)) { 
 
 	  score = hbond_geometry_score(contact);
 
@@ -370,9 +370,9 @@ double hbond_energy(CONTACT *contact) {
 
     if (type2->n_alt_types == 0) {
 
-      hbond_type = hbond_flags_match(type1->flags,type2->flags);
+      hbond_type = hbond_flags_match(type1->flags,type2->flags,1);
 
-      if (hbond_type == METAL_CONTACT) {
+      if (hbond_type == METAL_COORDINATING_CONTACT) {
 
 	Q += exp(-(IDEAL_METAL_COORD_ENERGY*geom_score)/RT);
 
@@ -391,9 +391,9 @@ double hbond_energy(CONTACT *contact) {
 
 	if (alt_type2->group_status == atom2->group_status) {
 
-	  hbond_type = hbond_flags_match(type1->flags,alt_type2->type->flags);
+	  hbond_type = hbond_flags_match(type1->flags,alt_type2->type->flags,1);
 
-	  if (hbond_type == METAL_CONTACT) {
+	  if (hbond_type == METAL_COORDINATING_CONTACT) {
 
 	    Q += (alt_type2->probability)*exp(-(IDEAL_METAL_COORD_ENERGY*geom_score)/RT);
 
@@ -417,9 +417,9 @@ double hbond_energy(CONTACT *contact) {
 
 	if (alt_type1->group_status == atom1->group_status) {
 
-	  hbond_type = hbond_flags_match(type2->flags,alt_type1->type->flags);
+	  hbond_type = hbond_flags_match(type2->flags,alt_type1->type->flags,1);
 
-	  if (hbond_type == METAL_CONTACT) {
+	  if (hbond_type == METAL_COORDINATING_CONTACT) {
 
 	    Q += (alt_type1->probability)*exp(-(IDEAL_METAL_COORD_ENERGY*geom_score)/RT);
 
@@ -444,9 +444,9 @@ double hbond_energy(CONTACT *contact) {
 
 	    if (alt_type2->group_status == atom2->group_status) {
 
-	      hbond_type = hbond_flags_match(alt_type1->type->flags,alt_type2->type->flags);
+	      hbond_type = hbond_flags_match(alt_type1->type->flags,alt_type2->type->flags,1);
 
-	      if (hbond_type == METAL_CONTACT) {
+	      if (hbond_type == METAL_COORDINATING_CONTACT) {
 
 		Q += (alt_type1->probability)*(alt_type2->probability)*exp(-(IDEAL_METAL_COORD_ENERGY*geom_score)/RT);
 
@@ -667,7 +667,7 @@ static void write_coordination_atom(FILE *file,ATOM *atom) {
 
 
 
-static int hbond_type_match(ATOM *atom1,ATOM *atom2) {
+int hbond_type_match(ATOM *atom1,ATOM *atom2) {
 
   unsigned int flags1,flags2;
 
@@ -679,39 +679,49 @@ static int hbond_type_match(ATOM *atom1,ATOM *atom2) {
   flags1 = atom1->type->flags;
   flags2 = atom2->type->flags;
 
-  return(hbond_flags_match(flags1,flags2));
+  return(hbond_flags_match(flags1,flags2,1));
 }
 
 
 
-int hbond_flags_match(unsigned int flags1,unsigned int flags2) {
+int hbond_flags_match(unsigned int flags1,unsigned int flags2,int allow_chos) {
 
   if ((flags1 & METAL_ATOM_TYPE) && ((flags2 & HBOND_ACCEPTOR_ATOM_TYPE) || (flags2 & METAL_ACCEPTOR_ATOM_TYPE))) {
 
-    return(METAL_CONTACT);
+    return(METAL_COORDINATING_CONTACT);
   }
 
   if ((flags2 & METAL_ATOM_TYPE) && ((flags1 & HBOND_ACCEPTOR_ATOM_TYPE) || (flags1 & METAL_ACCEPTOR_ATOM_TYPE))) {
 
-    return(METAL_CONTACT);
+    return(METAL_COORDINATING_CONTACT);
   }
 
   if ((!(flags1 & ANY_HBOND_ATOM_TYPE)) || (!(flags2 & ANY_HBOND_ATOM_TYPE))) {
 
+    return(0);  
+  }
+
+  if ((flags1 & HBOND_DONOR_ATOM_TYPE) && (flags2 & HBOND_ACCEPTOR_ATOM_TYPE)) {
+
+    return(HBOND_CONTACT);
+  }
+
+  if ((flags1 & HBOND_ACCEPTOR_ATOM_TYPE) && (flags2 & HBOND_DONOR_ATOM_TYPE)) {
+
+    return(HBOND_CONTACT);
+  }
+
+  if (!allow_chos) {
+
     return(0);
   }
 
-  if (((flags1 & HBOND_DA_ATOM_TYPE) == HBOND_DA_ATOM_TYPE) || ((flags2 & HBOND_DA_ATOM_TYPE) == HBOND_DA_ATOM_TYPE)) {
+  if ((flags1 & CHBOND_DONOR_ATOM_TYPE) && (flags2 & HBOND_ACCEPTOR_ATOM_TYPE)) {
 
     return(HBOND_CONTACT);
   }
 
-  if (((flags1 & HBOND_DONOR_ATOM_TYPE) || (flags1 & CHBOND_DONOR_ATOM_TYPE)) && (flags2 & HBOND_ACCEPTOR_ATOM_TYPE)) {
-
-    return(HBOND_CONTACT);
-  }
-
-  if ((flags1 & HBOND_ACCEPTOR_ATOM_TYPE) && ((flags2 & HBOND_DONOR_ATOM_TYPE) || (flags2 & CHBOND_DONOR_ATOM_TYPE))) {
+  if ((flags1 & HBOND_ACCEPTOR_ATOM_TYPE) && (flags2 & CHBOND_DONOR_ATOM_TYPE)) {
 
     return(HBOND_CONTACT);
   }

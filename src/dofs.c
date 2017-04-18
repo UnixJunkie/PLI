@@ -1,4 +1,4 @@
-// Copyright 2015 Astex Therapautics Ltd.
+// Copyright 2015 Astex Therapeutics Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,13 +23,14 @@
 
 
 
-static void add_dof_to_list(DOF_LIST*,enum DOF_TYPE,int,ATOM*,ATOM*,ATOMLIST*);
+static void add_dof_to_list(DOF_LIST*,enum DOF_TYPE,int,TORSION*,ATOMLIST*);
 static void add_ligand_rigid_body_to_dof_list(SYSTEM*,enum DOF_TYPE,DOF_LIST*);
 static void add_ligand_torsions_to_dof_list(SYSTEM*,DOF_LIST*);
+static void add_ligand_atoms_to_dof_list(SYSTEM*,DOF_LIST*,unsigned int);
 static void add_water_rigid_body_to_dof_list(SYSTEM*,DOF_LIST*);
 static DOF_LIST* alloc_dof_list(void);
 static void init_dof_list(DOF_LIST*);
-static int setup_dof(DOF*,enum DOF_TYPE,int,ATOM*,ATOM*,ATOMLIST*);
+static int setup_dof(DOF*,enum DOF_TYPE,int,TORSION*,ATOMLIST*);
 static double dof_shift_dx(ATOMLIST*,double**);
 
 
@@ -37,11 +38,13 @@ static double dof_shift_dx(ATOMLIST*,double**);
 unsigned int dofs_get_space(char *flags) {
 
   unsigned int space;
-  char *flag;
+  char *flag,cflags[MAX_LINE_LEN];
 
   space = 00;
 
-  flag = strtok(flags,",");
+  strcpy(cflags,flags);
+
+  flag = strtok(cflags,",");
 
   while (flag) {
 
@@ -60,7 +63,11 @@ unsigned int dofs_get_space(char *flags) {
     } else if (!strcmp(flag,"ligand_rigid_body")) {
       
       space |= DOF_LIGAND_RIGID_BODY;
-      
+
+    } else if (!strcmp(flag,"ligand_atoms")) {
+     
+      space |= DOF_LIGAND_ATOMS;
+     
     } else if (!strcmp(flag,"ligand")) {
       
       space |= DOF_LIGAND;
@@ -79,6 +86,62 @@ unsigned int dofs_get_space(char *flags) {
     }
 
     flag = strtok(NULL,",");
+  }
+
+  return(space);
+}
+
+
+
+unsigned int dofs_molecule_space(unsigned int dof,unsigned int flags) {
+
+  unsigned int space;
+
+  space = 0;
+
+  if (flags & LIGAND_MOLECULE) {
+
+    if (dof & DOF_LIGAND_TRANSLATION) {
+
+      space |= DOF_LIGAND_TRANSLATION;
+    }
+
+    if (dof & DOF_LIGAND_ROTATION) {
+      
+      space |= DOF_LIGAND_ROTATION;
+    }
+
+    if (dof & DOF_LIGAND_TORSIONS) {
+      
+      space |= DOF_LIGAND_TORSIONS;
+    }
+
+    if (dof & DOF_LIGAND_RIGID_BODY) {
+
+      space |= DOF_LIGAND_RIGID_BODY;
+    }
+
+    if (space & DOF_LIGAND_ATOMS) {
+     
+      space |= DOF_LIGAND_ATOMS;
+    }
+
+    if (dof & DOF_LIGAND) {
+
+      space |= DOF_LIGAND;
+    }
+
+  } else if (flags & PROTEIN_MOLECULE) {
+      
+    if (space & DOF_WATER_TRANSLATION) {
+
+      space |= DOF_WATER_TRANSLATION;
+    }
+
+    if (space & DOF_WATER) {
+
+      space |= DOF_WATER;
+    }
   }
 
   return(space);
@@ -141,7 +204,14 @@ void apply_dof_shift(DOF *variable,double shift) {
 
     for (i=0,atomp=atomlist->atom;i<atomlist->natoms;i++,atomp++) {
 
-      shift_atom(*atomp,v);
+      atom = *atomp;
+
+      shift_atom(atom,v);
+
+      if (atomlist->natoms == 1) {
+
+	set_atom_axes(atom);
+      }
     }
 
   } else if (variable->type == RB_ROTATION) {
@@ -167,24 +237,29 @@ void apply_dof_shift(DOF *variable,double shift) {
 
   } else if (variable->type == BOND_ROTATION) {
 
-    rotation_matrix(variable->atom1->position,variable->atom2->position,shift,rm);
+    rotate_torsion(variable->torsion,shift);
 
-    for (i=0,atomp=atomlist->atom;i<atomlist->natoms;i++,atomp++) {
+    //rotation_matrix(variable->torsion->atom1->position,variable->torsion->atom2->position,shift,rm);
+
+    //for (i=0,atomp=atomlist->atom;i<atomlist->natoms;i++,atomp++) {
       
-      transform_atom(*atomp,rm);
-    }
+    //  transform_atom(*atomp,rm);
+    //}
   }
 }
 
 
 
-DOF_LIST* setup_dof_list(SYSTEM *system,unsigned int space) {
+DOF_LIST* setup_dof_list(SYSTEM *system) {
 
   int i,j;
+  unsigned int space;
   DOF *variable;
   DOF_LIST *list = NULL;
   ATOM **atomp,*atom;
   ATOMLIST *atomlist;
+
+  space = system->dof;
 
   list = (DOF_LIST*) alloc_dof_list();
 
@@ -203,6 +278,16 @@ DOF_LIST* setup_dof_list(SYSTEM *system,unsigned int space) {
   if (space & DOF_LIGAND_TORSIONS) {
 
     add_ligand_torsions_to_dof_list(system,list);
+  }
+
+  if (space & DOF_LIGAND_ATOMS) {
+
+    add_ligand_atoms_to_dof_list(system,list,0);
+  }
+
+  if (space & DOF_LIGAND_MATCHED_ATOMS) {
+
+    add_ligand_atoms_to_dof_list(system,list,MATCHED_ATOM);
   }
 
   if (space & DOF_WATER_TRANSLATION) {
@@ -290,7 +375,7 @@ static void add_ligand_rigid_body_to_dof_list(SYSTEM *system,enum DOF_TYPE type,
 
 	for (j=0;j<3;j++) {
 
-	  add_dof_to_list(list,type,j,NULL,NULL,molecule->selection);
+	  add_dof_to_list(list,type,j,NULL,molecule->selection);
 	}
       }
     }
@@ -315,7 +400,44 @@ static void add_ligand_torsions_to_dof_list(SYSTEM *system,DOF_LIST *list) {
 
 	for (j=0,torsion=molecule->torsions;j<molecule->n_torsions;j++,torsion++) {
 	  
-	  add_dof_to_list(list,BOND_ROTATION,-1,torsion->atom1,torsion->atom2,torsion->rotlist);
+	  add_dof_to_list(list,BOND_ROTATION,-1,torsion,torsion->rotlist);
+	}
+      }
+    }
+  }
+}
+
+
+
+static void add_ligand_atoms_to_dof_list(SYSTEM *system,DOF_LIST *list,unsigned int flags) {
+
+  int i,j,k;
+  MOLECULE **moleculep,*molecule;
+  ATOM *atom;
+  ATOMLIST *alist;
+
+  for (i=0,moleculep=system->molecule_list->molecules;i<system->molecule_list->n_molecules;i++,moleculep++) {
+
+    molecule = *moleculep;
+
+    if (molecule->flags & LIGAND_MOLECULE) {
+
+      if (molecule->atom) {
+
+	for (j=0,atom=molecule->atom;j<molecule->natoms;j++,atom++) {
+
+	  if (atom->element->id != HYDROGEN) {
+
+	    if ((!flags) || (atom->flags & flags)) {
+
+	      alist = atom2atomlist(atom,0);
+	    
+	      for (k=0;k<3;k++) {
+	      
+		add_dof_to_list(list,RB_TRANSLATION,k,NULL,alist);
+	      }
+	    }
+	  }
 	}
       }
     }
@@ -344,7 +466,7 @@ static void add_water_rigid_body_to_dof_list(SYSTEM *system,DOF_LIST *list) {
 
 	for (j=0;j<3;j++) {
 
-	  add_dof_to_list(list,RB_TRANSLATION,j,NULL,NULL,alist);
+	  add_dof_to_list(list,RB_TRANSLATION,j,NULL,alist);
 	}
 
 	free_atomlist(alist);
@@ -355,7 +477,7 @@ static void add_water_rigid_body_to_dof_list(SYSTEM *system,DOF_LIST *list) {
 
 
 
-static void add_dof_to_list(DOF_LIST *list,enum DOF_TYPE type,int axis_id,ATOM *atom1,ATOM *atom2,ATOMLIST *atomlist) {
+static void add_dof_to_list(DOF_LIST *list,enum DOF_TYPE type,int axis_id,TORSION *torsion,ATOMLIST *atomlist) {
 
   DOF *variable;
 
@@ -384,7 +506,7 @@ static void add_dof_to_list(DOF_LIST *list,enum DOF_TYPE type,int axis_id,ATOM *
 
   variable = list->variables + (list->n_variables);
 
-  if (setup_dof(variable,type,axis_id,atom1,atom2,atomlist)) {
+  if (setup_dof(variable,type,axis_id,torsion,atomlist)) {
 
     list->n_variables += 1;
 
@@ -398,7 +520,7 @@ static void add_dof_to_list(DOF_LIST *list,enum DOF_TYPE type,int axis_id,ATOM *
 
 
 
-static int setup_dof(DOF *dof,enum DOF_TYPE type,int axis_id,ATOM *atom1,ATOM *atom2,ATOMLIST *list) {
+static int setup_dof(DOF *dof,enum DOF_TYPE type,int axis_id,TORSION *torsion,ATOMLIST *list) {
 
   double f,dx;
 
@@ -410,8 +532,7 @@ static int setup_dof(DOF *dof,enum DOF_TYPE type,int axis_id,ATOM *atom1,ATOM *a
   dof->fd_prev = 0.0;
   dof->cg = 0.0;
 
-  dof->atom1 = atom1;
-  dof->atom2 = atom2;
+  dof->torsion = torsion;
 
   dof->atomlist = NULL;
 

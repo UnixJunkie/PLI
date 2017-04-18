@@ -1,4 +1,4 @@
-// Copyright 2015 Astex Therapautics Ltd.
+// Copyright 2015 Astex Therapeutics Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,10 +19,22 @@
 
 
 static PLI_SFUNC pli_sfuncs[] = { { "pliff",
-				    pliff_score_system,pliff_minimise_system,
-				    pliff_write_system_scores,pliff_write_atom_scores,pliff_write_contact_scores },
+				    pliff_init,
+				    pliff_score_system,pliff_score_gradient,pliff_minimise_system,
+				    pliff_write_system_scores,pliff_write_atom_scores,pliff_write_contact_scores,
+				    999.9, ASCENDING },
+				  { "pliff_covalent",
+				    NULL,
+				    pliff_score_intra_covalent,NULL,NULL,
+				    NULL,NULL,NULL },
+				  { "pocket",
+				    NULL,
+				    pocket_score,NULL,NULL,
+				    NULL,NULL,NULL,
+				    -999.0, DESCENDING },
 				  { "last",
-				    NULL,NULL,
+				    NULL,
+				    NULL,NULL,NULL,
 				    NULL,NULL,NULL } };
 
 

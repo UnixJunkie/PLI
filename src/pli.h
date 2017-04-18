@@ -1,4 +1,4 @@
-// Copyright 2015 Astex Therapautics Ltd.
+// Copyright 2015 Astex Therapeutics Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,12 +20,38 @@
 #include <time.h>
 #include <string.h>
 #include <sys/time.h>
+#include <ctype.h>
 
+typedef struct Settings SETTINGS;
+typedef struct Element ELEMENT;
 
+struct Element {
+  int id;
+  char name[10];
+  double cov_radius;
+  double vdw_radius;
+  unsigned int flags;
+  int default_valence;
+  int n_lp;
+};
 
 #define YES 1
 #define NO 0
+#define TRUE 1
+#define FALSE 0
 #define UNDEFINED -1
+#define SET_BIT 1
+#define UNSET_BIT 0
+
+#define FIRST 0
+#define UNIQUE 1
+#define ALL 2
+#define BEST -1
+#define RANDOM -2
+#define ORIGINAL -3
+#define CURRENT -4
+
+#define MAX_QUERY_ATOMS 20
 
 // output bitmasks
 #define OUTPUT_NONE 0
@@ -47,6 +73,7 @@
 #define OUTPUT_SIMB 32768
 #define OUTPUT_STYPES 65536
 #define OUTPUT_SITE_STATS 131072
+#define OUTPUT_TRIPLETS 262144  
 
 #define COVALENT_TOLERANCE 0.4
 #define MAX_LINE_LEN 3000
@@ -55,10 +82,17 @@
 #define GOLDEN_RATIO 0.618034
 #define MAX_RING_SIZE 500
 #define DEFAULT_VDW_RADIUS 1.70
-#define RT 2.47897
+#define RT 0.59248490241
+#define GAS_CONSTANT .0019872041
 #define MAX_ATOM_SCORES 10
 #define MAX_CONTACT_SCORES 10
 #define MAX_SYSTEM_SCORES 100
+#define MAX_ATOM_EDGES 12
+
+#define MIN_COORD_SHAKE 0.0000000001
+#define MAX_COORD_SHAKE 0.0000000009
+
+
 
 // common element atomic numbers
 #define HYDROGEN 1
@@ -91,6 +125,8 @@
 #define SINGLE_ATOM_PROBE 128
 #define SKIP_ATOM 256
 #define SELECTED_ATOM 512
+#define MATCHED_ATOM 1024
+#define RING_ATOM 2048
 
 // atom status bitmasks
 #define ATOM_UNCHANGED 0
@@ -120,6 +156,10 @@
 #define AROMATIC_ATOM_TYPE 64
 #define LIPOPHILIC_ATOM_TYPE 128
 
+// bond and bond angle bitmasks
+#define SKIP_BOND 1
+#define SKIP_BOND_ANGLE 1
+
 // residue bitmasks
 #define AMINO_ACID 1
 
@@ -128,6 +168,7 @@
 #define PROTEIN_MOLECULE 2
 #define SYMMETRY_MOLECULE 4
 #define ANY_MOLECULE 7
+
 
 // atom error flag bit masks
 #define ATOM_GEOMETRY_ERROR 1
@@ -145,6 +186,7 @@
 #define NO_VORONOI_CONTACT 4
 #define INTRAMOLECULAR_CONTACT 8
 #define METAL_COORDINATING_CONTACT 16
+#define HBOND_CONTACT 32
 
 // atom sets:
 #define PROTEIN_ATOM_SET 1
@@ -172,6 +214,7 @@
 // geometric corrections for histograms:
 #define NO_GEOMETRIC_CORRECTION 0
 #define CONICAL_CORRECTION 1
+#define PLIFF_R_CORRECTION 2
 
 #define BULK_WATER_TD 2.8
 
@@ -181,27 +224,37 @@
 #define DOF_LIGAND_TORSIONS 4
 #define DOF_LIGAND_RIGID_BODY 3
 #define DOF_LIGAND 7
-#define DOF_WATER_TRANSLATION 8
-#define DOF_WATER 8
+#define DOF_LIGAND_ATOMS 8
+#define DOF_LIGAND_MATCHED_ATOMS 16
+#define DOF_WATER_TRANSLATION 32
+#define DOF_WATER 32
 
 // map mask types:
 #define CONTACT_MASK 1
 #define ATOM_MASK 2
 #define VDW_MASK 3
+#define CUSTOM_MASK 4
+#define FIXED_MASK 4
+#define PROBE_MASK 5
+
+// atom matching
+#define MAX_MATCH_ATOMS 100
 
 
-
-enum MAP_TYPE { INTEGER_MAP,DOUBLE_MAP,ATOMLIST_MAP };
-
-enum FILE_FORMAT { GZIPPED_FILE,ASCII_FILE };
-
-enum OUTPUT_FORMAT { FORMATTED,JSON };
-
-enum ATOM_STYLE { BASIC_ASTYLE,PDB_ASTYLE,PLIFF_ASTYLE,TYPE_ASTYLE };
 
 enum MINIMISATION_ALGORITHM { STEEPEST_DESCENT,CONJUGATE_GRADIENT };
 
+enum SCORE_ORDER {ASCENDING, DESCENDING};
 
+// io definitions:
+
+enum FILE_FORMAT { GZIPPED_FILE,ASCII_FILE };
+
+enum OUTPUT_FORMAT { FORMATTED,JSON,CSV };
+
+typedef unsigned char BYTE;
+typedef unsigned char BOOLEAN;
+typedef unsigned int FLAG;
 
 typedef struct PLIFile {
   char filename[MAX_LINE_LEN];
@@ -209,9 +262,53 @@ typedef struct PLIFile {
   enum FILE_FORMAT format;
 } PLI_FILE;
 
+typedef struct OStyle {
+  char name[20];
+  char separator[5];
+  char open[2];
+  char close[2];
+  char format[20];
+} OSTYLE;
+
+typedef void (*OBJ2TEXT)(void*,char*,char*);
+
+typedef struct OField {
+  char name[20];
+  char uformat[50];
+  char fformat[50];
+  char format[50];
+  OSTYLE *ostyle;
+  OBJ2TEXT obj2text;
+} OFIELD;
+
+typedef struct Ogroup {
+  char name[20];
+  OFIELD *ofields;
+  char fields[200];
+} OGROUP;
+
+typedef struct List {
+  char name[20];
+  int n_items;
+  int n_alloc_items;
+  int item_size;
+  void *items;
+} LIST;
+
 extern PLI_FILE *PLI_STDIN;
 extern PLI_FILE *PLI_STDOUT;
 extern PLI_FILE *PLI_STDERR;
+
+void obj2text(void*,char*,OFIELD*);
+OSTYLE* get_ostyle(char*);
+OGROUP* get_ogroup(OGROUP*,char*);
+OFIELD* get_ofield(OFIELD*,char*);
+void init_ofields(OFIELD*);
+void set_ofields(OFIELD*,char*,char*);
+void set_ofield(OFIELD*,char*);
+void set_ogroups(OGROUP*,char*,char*);
+
+// map definitions:
 
 typedef struct Grid {
   int npoints[3]; /* number of grid points along each of the 3 axes */
@@ -221,33 +318,41 @@ typedef struct Grid {
   double padding;
 } GRID;
 
+typedef struct Maptype {
+  char name[20];
+  int item_size;
+  void (*init)(void*);
+  void (*free)(void*);
+} MAP_TYPE;
+
 typedef struct Map {
-  enum MAP_TYPE type;
   char name[MAX_LINE_LEN];
+  MAP_TYPE *type;
   GRID *grid;
   void ***matrix;
-  unsigned char *mask;
+  BYTE *mask;
 } MAP;
 
 typedef struct MapIsland {
   int id;
   int *points;
   int n_points;
+  int n_frag_points;
   int n_alloc_points;
+  int *edge_points;
+  int n_edge_points;
+  int n_alloc_edge_points;
   double maxY;
   double sumY;
   double avgY;
   double integral;
+  double frag_integral;
   double volume;
+  int ix;
+  int iy;
+  int iz;
+  struct AtomList *site_atoms;
 } MAP_ISLAND;
-
-typedef struct Element {
-  int id;
-  char name[10];
-  double cov_radius;
-  double vdw_radius;
-  unsigned int flags;
-} ELEMENT;
 
 typedef struct AtomCoords {
   double position[4];
@@ -256,12 +361,17 @@ typedef struct AtomCoords {
   double w[4];
 } ATOM_COORDS;
 
+typedef struct AtomEdge {
+  struct Atom *atom;
+  struct Bond *bond;
+} ATOM_EDGE;
+
 typedef struct Atom {
   int unique_id;
   int id;
   int seqid;
   ELEMENT *element;
-  char name[10];
+  char name[20];
   char alt_name[10];
   char subname[10];
   int subid;
@@ -275,6 +385,7 @@ typedef struct Atom {
   double bfactor;
   double tdf;
   double td;
+  double lnPu;
   double vdw_radius;
   double vdw_radius_H2O;
   double tether_k;
@@ -282,6 +393,7 @@ typedef struct Atom {
   struct AtomType *type;
   struct AtomType *ambiguous_type;
   struct AtomList *connections;
+  struct AtomList *h_connections;
   struct AtomGeometry *geometry;
   struct HBondGeometry *hbond_geometry;
   struct AtomCoordination *coordination;
@@ -315,11 +427,43 @@ typedef struct Atom {
   int planar;
   int n_hydrogens;
   int group_status;
+  int smarts_ring_label;
   unsigned int cstatus;
   unsigned int status;
   unsigned int flags;
   unsigned int error_flags;
+  //
+  struct TripletList *tripletlist;
+  int td_converged;
+  int type_id_file;
+  struct AtomQuery *query;
+  int n_edges;
+  struct AtomEdge edges[MAX_ATOM_EDGES];
+  int hybridisation;
+  struct FeatureGroup *fgroup;
+  MAP *depth_map;
+  LIST *hydrogens;
+  LIST *substructure;
 } ATOM;
+
+typedef struct AtomQuery {
+  ATOM *atom;
+  int ring_label;
+  int aromatic;
+  int hybridisation;
+  int planar;
+  int linear;
+  int ring_atom;
+  int n_edges;
+  int n_hydrogens;
+  int any_element;
+  int n_elids;
+  int elids[10];
+  int mol_type;
+  int n_resnames;
+  char resnames[10][4];
+  struct FeatureGroupType *fgtype;
+} ATOM_QUERY;
 
 struct AtomList;
 struct System;
@@ -327,24 +471,44 @@ struct Torsion;
 
 typedef struct Bond {
   int type;
+  double distance;
+  double Do;
+  double k;
   struct Atom *atom1;
   struct Atom *atom2;
   struct Torsion *torsion;
+  unsigned int flags;
 } BOND;
+
+typedef struct BondAngle {
+  double angle;
+  double Ao;
+  double k;
+  struct Atom *atom1;
+  struct Atom *atom2;
+  struct Atom *atom3;
+  unsigned int flags;
+} BOND_ANGLE;
 
 typedef struct TorsionType {
   char name[MAX_LINE_LEN];
+  int united;
+  int implicit14;
   int hyb1;
   int hyb2;
   double A;
   double n;
   double Xo;
+  int n_terms;
 } TORSION_TYPE;
 
 typedef struct Torsion {
+  double angle;
   BOND *bond;
   ATOM *atom1;
   ATOM *atom2;
+  ATOM *batom1;
+  ATOM *batom2;
   struct AtomList *alist1;
   struct AtomList *alist2;
   struct AtomList *rotlist;
@@ -360,15 +524,21 @@ typedef struct Molecule {
   char name[MAX_LINE_LEN];
   int natoms;			/* the number of atoms in the molecule */
   int nbonds;			/* the number of bonds in the molecule */
+  int n_bond_angles;		/* the number of bond angles in the molecule */
   int n_torsions;               /* the number of bond torsions in the molecule */
   ATOM* atom;			/* array of atoms (see struct ATOM) */
   BOND* bond;			/* array of bonds (see struct BOND) */
+  BOND_ANGLE* bond_angles;	/* array of bond angle (see struct BOND_ANGLE) */
   TORSION *torsions;            /* array of bond torsions */
   int **nb_atom_pairs;          /* matrix describing atom pairs to be checked for nonbonded contacts */
   int n_alloc_atoms;
   int n_alloc_bonds;
+  int n_alloc_bond_angles;
   MAP *covalent_map;
   MAP *contacts_map;
+  MAP *conmap;
+  MAP *depth_map;
+  LIST *atom_ids;
   struct AtomList *selection;
   struct System *molsystem;
   int use_pdb_dict;
@@ -382,6 +552,19 @@ typedef struct Molecule {
   unsigned int flags;
   double score;
   struct System *system;
+  double geometric_center[4];
+  double center_of_mass[4];
+  double moment_of_inertia[4];
+  LIST *active_atoms;
+  LIST *nonh_atoms;
+  LIST *hydrogens;
+  LIST *hydrogen_lists;
+  LIST *fgroups;
+  LIST *feature_lists;
+  LIST *features;
+  LIST *substructures;
+  LIST *subatoms;
+  LIST *atom_queries;
 } MOLECULE;
 
 typedef struct Complex {
@@ -463,6 +646,9 @@ typedef struct HBondGeometry {
 
 typedef struct Residue {
   char name[10];
+  int id;
+  char chain;
+  char icode;
   char single_letter_code;
   unsigned int flags;
 } RESIDUE;
@@ -654,22 +840,32 @@ typedef struct edgevector {
 
 struct Settings;
 struct System;
+struct DegreeOfFreedom;
 
 typedef struct PliMode {
   char name[MAX_LINE_LEN];
   void (*run)(struct Settings*);
   char selection[MAX_LINE_LEN];
   int selection_deviation_warning;
+  int allow_pre_minimise;
 } PLI_MODE;
+
+typedef struct PocketMode {
+  char name[MAX_LINE_LEN];
+  struct Map* (*map)(struct System*);
+} POCKET_MODE;
 
 typedef struct PliSfunc {
   char name[MAX_LINE_LEN];
-  void (*score_system)(struct System*);
+  void (*init)(void);
+  double (*score_system)(struct System*);
+  double (*score_gradient)(struct DegreeOfFreedom*,struct System*);
   void (*minimise_system)(struct System*);
-  void (*write_system_scores)(PLI_FILE*,struct System*,enum OUTPUT_FORMAT,unsigned long int);
-  void (*write_atom_scores)(PLI_FILE*,struct Atom*,enum OUTPUT_FORMAT,unsigned long int);
-  void (*write_contact_scores)(PLI_FILE*,struct Contact*,enum OUTPUT_FORMAT,unsigned long int);
+  void (*write_system_scores)(PLI_FILE*,struct System*);
+  void (*write_atom_scores)(PLI_FILE*,struct Atom*);
+  void (*write_contact_scores)(PLI_FILE*,struct Contact*);
   double bad_score;
+  int order;
 } PLI_SFUNC;
 
 typedef struct SysMols {
@@ -677,16 +873,19 @@ typedef struct SysMols {
   MOLECULE *water;
   MOLECULE *symmetry;
   MOLECULE *ligand;
+  MOLECULE *site_ligand;
+  MOLECULE *template;
   MOLECULE_LIST *ligand_list;
   COMPLEX_LIST *complex_list;
 } SYSMOLS;
 
-typedef struct Settings {
+struct Settings {
   char *pli_dir;
   int verbose;
   PLI_MODE *mode;
   PLI_SFUNC *sfunc;
   char jobname[MAX_LINE_LEN];
+  int use_fixed_random_seeds;
   char selection[100];
   char settings_file[100];
   char types_file[1000];
@@ -696,7 +895,6 @@ typedef struct Settings {
   char oatoms[MAX_LINE_LEN];
   enum OUTPUT_FORMAT oformat;
   unsigned long int oflags;
-  enum ATOM_STYLE astyle;
   int protein_use_pdb_dict;
   int ligand_use_pdb_dict;
   int protein_use_hydrogens;
@@ -710,26 +908,42 @@ typedef struct Settings {
   double water_vdw_radius;
   double max_covalent_dist;
   double max_contact_dist;
-  int id1,id2;
+  int id1,id2,eid1,eid2;
   char hist_name[20];
   SYSMOLS *sysmols;
+  LIST *site_atoms;
   int minimise;
   int allow_bad_clashes;
   int allow_covalent_bonds;
   char keep_waters[200];
-} SETTINGS;
+  unsigned int dof;
+};
+
+typedef struct Match {
+  int n_atoms;
+  unsigned char flags;
+  int score;
+  ATOM *atoms1[MAX_MATCH_ATOMS];
+  ATOM *atoms2[MAX_MATCH_ATOMS];
+} MATCH;
 
 typedef struct System {
   int id;
+  int prepped;
+  int score_prepped;
   char name[MAX_LINE_LEN];
   struct Settings *settings;
   MOLECULE *protein;
   MOLECULE *water;
   MOLECULE *ligand;
+  MOLECULE *site_ligand;
+  MOLECULE *template;
   MOLECULE *symmetry;
   MOLECULE_LIST *molecule_list;
   ATOMLIST *selection;
+  LIST *active_atoms;
   ATOM_COORDS *coords;
+  MATCH *template_match;
   double score;
   double scores[MAX_SYSTEM_SCORES];
   double ref_score;
@@ -737,6 +951,7 @@ typedef struct System {
   double constraint_score;
   double min_dx;
   double min_ds;
+  unsigned int dof;
 } SYSTEM;
 
 typedef struct SystemList {
@@ -759,6 +974,7 @@ typedef struct AtomFF {
 } ATOM_FF;
 
 typedef struct NonBondedFF {
+  int surrogate;
   int ready;
   int usage_count;
   ATOM_TYPE *type1;
@@ -768,11 +984,27 @@ typedef struct NonBondedFF {
   double lnP;
   double slnP;
   char precision[10];
+  double Dvdw;
   double Do;
+  double Eo;
+  double Po;
   double Dc;
-  int use_clash_potential;
-  double LJ_A;
-  double LJ_B;
+  double k1;
+  double k2;
+  double opt_Z;
+  double opt_sY;
+  double LJ_n;
+  double LJ_Z;
+  double LJ_sY;
+  double LR_A;
+  double LR_B;
+  double LR_D;
+  double LR_n;
+  double Z1;
+  double Z2;
+  double sY1;
+  double sY2;
+  char shape[10];
   int R_histogram_id;
   int ALPHA1_histogram_id;
   int BETA1_histogram_id;
@@ -782,6 +1014,7 @@ typedef struct NonBondedFF {
 } NONBONDED_FF;
 
 typedef struct ForceField {
+  int AMI_HISTOGRAM_ID;
   ATOM_FF *atom;
   NONBONDED_FF **nonbonded;
   SETTINGS *settings;
@@ -791,6 +1024,9 @@ typedef struct HistogramPoint {
   double X;
   double Y;
   double sY;
+  double Yraw;
+  double sYraw;
+  int N;
 } HISTOGRAM_POINT;
 
 typedef struct Histogram {
@@ -815,8 +1051,6 @@ typedef struct Histogram {
   int extrapolation_method;
   int normalisation_method;
   int geometric_correction;
-  int sharpen;
-  double sharpen_sX;
   int log_scale;
   double start_s;
   double end_s;
@@ -828,8 +1062,7 @@ enum DOF_TYPE { RB_TRANSLATION,RB_ROTATION,BOND_ROTATION };
 typedef struct DegreeOfFreedom {
   enum DOF_TYPE type;
   int axis_id;
-  ATOM *atom1;
-  ATOM *atom2;
+  TORSION *torsion;
   ATOMLIST *atomlist;
   double **pos;
   double **u;
@@ -854,9 +1087,10 @@ typedef struct DegreeOfFreedomList {
   int cg_initialised;
 } DOF_LIST;
 
+// TODO: rename this to atom probe
 typedef struct FieldProbe {
   int id;
-  enum { ATOM_PROBE,MOLECULE_PROBE } type;
+  enum { ATOM_PROBE } type;
   char name[MAX_LINE_LEN];
   ATOM *atom;
   MOLECULE *molecule;
@@ -874,12 +1108,30 @@ typedef struct PLIParam {
   char type[40];
   union PLIParamValue value;
   int exposed;
+  int inherit;
+  char inherit_name[40];
   char default_value[MAX_LINE_LEN];
   char valid_values[MAX_LINE_LEN];
   char help_text[MAX_LINE_LEN];
+  LIST *synonyms;
 } PLI_PARAM;
 
+typedef struct MoleculeProperty {
+  char name[MAX_LINE_LEN];
+  char type;
+  union PLIParamValue value;
+} MOLECULE_PROPERTY;
 
+typedef struct ProbePoseLite {
+  int orientation_index;
+  double score;
+} PROBE_POSE_LITE;
+
+typedef struct PoseListLite {
+  int n_poses;
+  int n_alloc_poses;
+  PROBE_POSE_LITE *poses;
+} POSELIST_LITE;
 
 double round(double);
 double frand(void);
@@ -887,6 +1139,7 @@ int irand(void);
 double distance(double*,double*);
 double sqr_distance(double*,double*);
 int points_within_distance(double*,double*,double);
+void set_vector(double*,double,double,double);
 void null_vector(double*);
 void copy_vector(double*,double*);
 void calc_vector(double*,double*,double*);
@@ -898,25 +1151,34 @@ void calc_crossproduct(double*,double*,double*);
 double vector_angle(double*,double*);
 void scale_vector(double*,double);
 void sum_vector(double*,double*,double*);
+void shift_vector(double*, double*);
 void transform_vector(double*,double[4][4]);
 void calc_transformed_vector(double*,double[4][4],double*);
 void write_matrix(char*,double[4][4]);
 void unit_matrix(double[4][4]);
+void scalar_matrix(double, double[4][4]);
+void copy_matrix(double[4][4], double[4][4]);
 void translation_matrix(double*,double[4][4]);
 void euler_matrix(double,double,double,double[4][4]);
 void rotation_matrix(double*,double*,double,double[4][4]);
 void calc_matrix_product(double[4][4],double[4][4],double[4][4]);
-double torsion_angle(double*,double*,double*,double*);
+double matrix_determinant(double**,int);
+double three_point_angle(double*,double*,double*);
+double dihedral_angle(double*,double*,double*,double*);
 double triangle_area(double*,double*,double*);
 int solve_line(double,double,double,double,double*,double*);
+int line_line_intersection(double,double,double,double,double*,double*);
 int solve_parabola(double,double,double,double,double,double,double*,double*,double*);
 int calc_parabola_vertex(double,double,double,double,double,double,double*,double*);
+int calc_parabola_x_intercepts(double,double,double,double*,double*);
 long int factorial(int);
 double ramp_function(double,double,double,double,double);
+double linear_interpolate(double, double, double);
 
 void init_io(void);
 void error_fn (char*, ...);
 void warning_fn (char*, ...);
+void debug_print(char*, ...);
 char* get_pli_dir(void);
 PLI_FILE* new_file(char*,FILE*);
 PLI_FILE* open_file(char*,char*);
@@ -926,20 +1188,25 @@ char* read_line(char*,int,PLI_FILE*);
 void write_line(PLI_FILE*,const char*,...);
 long int pli_ftell(PLI_FILE*);
 int pli_fseek(PLI_FILE*,long int,int);
-void read_word(char*,const char*,void*);
+LIST* file2lines(char*);
+LIST* filter_lines(LIST*,char*);
+int read_word(char*,const char*,void*);
 void substring(char*,int,int,char*);
 void remove_spaces(char*,char*);
 void remove_outer_spaces(char*,char*);
+int read_intf(char*,int,char*,int*);
 void upper_case(char*);
 enum OUTPUT_FORMAT get_output_format(char*);
+int is_readable_file(char *name_with_path);
 
-void atom2name(ATOM*,char*);
 void init_atom(ATOM*);
 void unprep_atom(ATOM*);
 void init_bond(BOND*);
 void init_molecule(MOLECULE*,int);
 void prep_molecule(MOLECULE*,SETTINGS*);
 void unprep_molecule(MOLECULE*,SETTINGS*);
+void free_molecule(MOLECULE*);
+LIST* molecule_active_atoms(MOLECULE*);
 void realloc_atoms(MOLECULE*);
 void realloc_bonds(MOLECULE*);
 ATOM* get_atom(MOLECULE*,int);
@@ -947,25 +1214,27 @@ BOND* get_bond(MOLECULE*,ATOM*,ATOM*);
 BOND* add_bond(MOLECULE*,ATOM*,ATOM*,int);
 void delete_atom(MOLECULE*,int);
 void delete_bond(MOLECULE*,int);
-void set_system_connections(SYSTEM*);
+LIST *atoms2substructures(LIST*);
 void set_molecule_connections(MOLECULE*,int);
 double molecule_dict_match(MOLECULE*);
 void reset_molecule_connections(MOLECULE*);
 void get_connected_atoms(ATOMLIST*,ATOM*,ATOM*,int,unsigned int,unsigned int);
 int same_molecule_atoms(ATOM*,ATOM*);
+RESIDUE* atomlist2residues(ATOMLIST*,int*);
 int same_residue_atoms(ATOM*,ATOM*);
 int atom_residue_in_list(ATOM*,ATOMLIST*);
-GRID* system2grid(SYSTEM*,double,double);
-MAP* system2atommap(SYSTEM*,double);
 GRID* molecule2grid(MOLECULE*,double,double,GRID*);
+GRID* alist2grid(LIST*,double,double,GRID*);
 GRID* atomlist2grid(ATOMLIST*,double,double,GRID*);
 MAP* molecule2atommap(MOLECULE*,double,MAP*,int);
+MAP* molecule2contactmap(MOLECULE*);
+
 void move_atom(ATOM*,double*);
 void shift_atom(ATOM*,double*);
 void transform_atom(ATOM*,double[4][4]);
-void molecule_center(MOLECULE*,double*);
-ATOMLIST* molecule_sphere_to_atom_list(MOLECULE*,MOLECULE*,double);
-ATOMLIST* molecule_atom_ids_to_atom_list(MOLECULE*,int*,int);
+void add_molecule_center(MOLECULE*, int);
+void move_molecule_centre(MOLECULE*, double*);
+void add_molecule_moi(MOLECULE*);
 MOLECULE_LIST* alloc_molecule_list(void);
 void init_molecule_list(MOLECULE_LIST*);
 void add_molecule_to_list(MOLECULE_LIST*,MOLECULE*);
@@ -979,7 +1248,9 @@ int atom_in_list(ATOMLIST*,ATOM*);
 int atomlist_index(ATOMLIST*,ATOM*);
 ATOMLIST* atom2atomlist(ATOM*,unsigned int);
 ATOMLIST* molecule2atoms(MOLECULE*);
+ATOM_COORDS* molecule2coords(MOLECULE*);
 ATOMLIST* molecule2waters(MOLECULE*);
+ATOMLIST* molecule2site(MOLECULE*);
 ATOMLIST* atomlist2waters(ATOMLIST*);
 void add_molecule_atoms_to_list(ATOMLIST*,MOLECULE*);
 void add_atomlist_to_atomlist(ATOMLIST*,ATOMLIST*);
@@ -991,6 +1262,7 @@ void add_bond_to_list(BONDLIST*,BOND*);
 int bond_in_list(BONDLIST*,BOND*);
 void free_bondlist(BONDLIST*);
 BONDLIST* atomlist2bondlist(ATOMLIST*);
+int linear_atom(ATOM*);
 int planar_atom(ATOM*);
 void set_system_vdw_radii(SYSTEM*);
 void set_molecule_vdw_radii(MOLECULE*,double);
@@ -998,50 +1270,85 @@ void set_atom_vdw_radii(ATOM*,double);
 ATOM* atomlist2atoms(ATOMLIST*);
 void atoms2atomlist(ATOMLIST*,ATOM*);
 void copy_atomlist(ATOMLIST*,ATOMLIST*);
+void copy_atom_coords(ATOM*,ATOM*);
 double** atomlist2coordinates(ATOMLIST*);
 void coordinates2atomlist(ATOMLIST*,double**);
 double** molecule2coordinates(MOLECULE*);
 void coordinates2molecule(MOLECULE*,double**);
-void select_molecule_atoms(MOLECULE*,char*);
 int allow_covalent_bond(ATOM*,ATOM*);
 void atomlist2centroid(ATOMLIST*,double*);
+int heavy_atom_count(MOLECULE*);
+void coords2molecule(ATOM_COORDS *coords, MOLECULE *molecule);
+ATOM_COORDS** get_molecule_orientations(MOLECULE *molecule, int n_lebedev_points, double **lebdev_axes, int n_rot_lebedev_axis, int n_dihedral_steps, int *n_orientations);
 
 void write_grid(FILE*,GRID*);
-MAP *new_map(char*);
-MAP *new_system_map(char*,SYSTEM*,GRID*,enum MAP_TYPE);
+MAP *new_map(char*,char*,GRID*);
+GRID* new_grid(double,double);
+GRID* copy_grid(GRID*,GRID*);
+MAP* copy_map(MAP*,MAP*);
+int grid_points(GRID*);
+void increment_map(MAP*,unsigned char*,double);
 void free_map(MAP*);
 void alloc_map_matrix(MAP*);
-void*** alloc_3d_matrix(GRID*,enum MAP_TYPE);
+void*** alloc_3d_matrix(GRID*,int);
+double*** alloc_3d_double_matrix(int,int,int);
 void init_3d_matrix(MAP*);
-GRID *new_grid(void);
 int pos2grid(double*,int*,GRID*);
 int pos2grid_round(double*,int*,GRID*);
 int point_in_grid(double*,GRID*,double);
 void point_to_gridpoint(double*,int*,GRID*);
 void gridpoint_to_point(int*,double*,GRID*);
-int is_mask_bit_set(unsigned char*,int);
-void mask_map_molecule(MAP*,MOLECULE*,int);
-void set_mask_bit(unsigned char*,int);
-void init_3d_mask(MAP*);
 MAP_ISLAND* index2island(int,MAP_ISLAND*,int);
+void remove_small_islands(MAP*,double,double);
+void free_map_islands(MAP_ISLAND*,int);
+MAP* copy_fmap(MAP*);
+void inflate_map(MAP*);
+void average_map(MAP*);
+void smoothe_map(MAP*);
 int point_in_island(int,MAP_ISLAND*);
 MAP_ISLAND* map2islands(MAP*,double,int*);
+void init_map_island(MAP_ISLAND*,int);
+void grow_map_island(MAP_ISLAND*,MAP*,double,int);
+void add_point_to_map_island(MAP_ISLAND*,int,int);
 double island_mask_overlap(MAP_ISLAND*,MAP*,double);
 double island_map_overlap(MAP_ISLAND*,MAP*);
 void calc_map_island_properties(MAP_ISLAND*,MAP*);
 int map_index2grid(int,int*,int*,int*,GRID*);
 int map_grid2index(int,int,int,GRID*);
+void v_init_double(void*);
+void v_init_int(void*);
+void v_init_atomlist(void*);
+void v_init_alist(void*);
+void v_free_list_items(void*);
+
+
+
+double trilinear_interpolate(MAP*, double*, double);
+
+int mask_bytes(GRID*);
+BYTE* alloc_mask(GRID*);
+void init_mask(BYTE*,GRID*);
+BYTE* copy_mask(BYTE*,BYTE*,GRID*);
+BYTE* mask_molecule(MOLECULE*,BYTE*,GRID*,int);
+BYTE* mask_system_atoms(SYSTEM*,BYTE*,GRID*,int,double);
+BYTE* mask_system_volume(SYSTEM*,BYTE*,GRID*,int,double);
+BYTE* mask_atoms(LIST*,BYTE*,GRID*,int,double);
+BYTE* mask_atom(ATOM*,BYTE*,GRID*,int,double);
+BYTE* and_mask(BYTE*,BYTE*,BYTE*,GRID*);
+BYTE* or_mask(BYTE*,BYTE*,BYTE*,GRID*);
+int is_mask_bit_set(BYTE*,int);
+void set_mask_bit(BYTE*,int);
+void unset_mask_bit(BYTE*,int);
+MAP* mask_map(BYTE*,MAP*,GRID*);
 
 void run_field(SETTINGS*);
 void init_field_settings(void);
 void init_field_probes(SETTINGS*);
-MAP* calculate_field(SYSTEM*,FIELD_PROBE*,PLI_SFUNC*);
-MAP* init_field(char*,SYSTEM*);
+MAP* calculate_field(SYSTEM*,FIELD_PROBE*,MAP*,PLI_SFUNC*);
+void init_field_system(SYSTEM*,FIELD_PROBE*);
+void finish_field_system(SYSTEM*,FIELD_PROBE*);
 FIELD_PROBE* get_field_probe(char*);
-
-void init_site(SETTINGS*);
-ATOMLIST* molecule2site(MOLECULE*);
-void init_site_settings(void);
+void move_probe_to_new_position(FIELD_PROBE*,double*);
 
 void write_insight_map(char*,MAP*,int);
 MAP* read_insight_map(char*); 
@@ -1050,6 +1357,7 @@ MOLECULE* read_pdb_molecule(char*);
 int write_pdb_molecule(MOLECULE*,char*);
 void write_pdb_atom_list(PLI_FILE*,ATOMLIST*,unsigned long int);
 void write_pdb_atom(PLI_FILE*,ATOM*);
+void write_pdb_bond(PLI_FILE*, BOND*);
 void atom2pdbstr(ATOM*,char*);
 MOLECULE* get_pdb_dict(char*);
 MOLECULE* read_cif_molecule(char*);
@@ -1057,11 +1365,13 @@ ATOM* get_cif_atom(char*,MOLECULE*);
 ELEMENT* pdb_atom_element(ATOM*,ATOM_TYPING_SCHEME*);
 
 MOLECULE* read_mdl_molecule(char*);
+void write_mdl_molecule(MOLECULE*,char*);
 int read_mdl_molecule_fp(MOLECULE*);
 MOLECULE_LIST* read_mdl_molecule_list(char*);
-void write_mdl_atom_list(PLI_FILE*,ATOMLIST*);
+void write_mdl_atom_list(PLI_FILE*,ATOMLIST*, char*, int, int, ...);
 
 MOLECULE* read_sybyl_molecule(char*);
+void write_sybyl_molecule(MOLECULE*,char*);
 
 void run_contacts(SETTINGS*);
 void init_contact_settings(void);
@@ -1077,7 +1387,7 @@ void write_clashes_atom_list(PLI_FILE*,ATOMLIST*,enum OUTPUT_FORMAT,unsigned lon
 void write_hbonds_atom_list(PLI_FILE*,ATOMLIST*,enum OUTPUT_FORMAT,unsigned long int);
 void write_contacts_atom(PLI_FILE*,ATOM*,enum OUTPUT_FORMAT,unsigned long int);
 void write_clashes_atom(PLI_FILE*,ATOM*,enum OUTPUT_FORMAT,unsigned long int);
-void write_contact(PLI_FILE*,CONTACT*,enum OUTPUT_FORMAT,unsigned long int);
+void write_contact(PLI_FILE*,CONTACT*);
 void write_clash(PLI_FILE*,CONTACT*,double,double,enum OUTPUT_FORMAT,unsigned long int);
 void write_hbond(PLI_FILE*,CONTACT*,double,enum OUTPUT_FORMAT,unsigned long int);
 void write_sas_stats_atom_list(PLI_FILE*,ATOMLIST*,enum OUTPUT_FORMAT);
@@ -1103,6 +1413,7 @@ ATOM_TYPING_SCHEME* alloc_atom_typing_scheme(void);
 void set_atom_type(ATOM*,int,ATOM_TYPING_SCHEME*);
 ATOM_TYPE* get_atom_type(char*,ATOM_TYPING_SCHEME*);
 ATOM_TYPE* get_atom_type_by_id(int,ATOM_TYPING_SCHEME*);
+ATOM_TYPE* get_atom_type_by_element_id(int,ATOM_TYPING_SCHEME*);
 ALT_ATOM_TYPE *get_alt_type(ATOM_TYPE*,char*,int);
 ATOM_NODE* get_atom_node(char*,ATOM_TYPING_SCHEME*);
 UNITED_ATOM* get_united_atom(char*,ATOM_TYPING_SCHEME*);
@@ -1115,18 +1426,23 @@ ATOM *carboxyl_o_from_o(ATOM*);
 ATOM_TYPING_SCHEME* get_atom_typing_scheme(void);
 ELEMENT* get_element(char*,ATOM_TYPING_SCHEME*);
 ELEMENT* get_element_by_id(int,ATOM_TYPING_SCHEME*);
+ELEMENT* get_element_from_type(ATOM_TYPE*);
 
 RING_LIST* atomlist2ringlist(ATOMLIST*,int);
-void find_ring(ATOM*,int);
+void find_ring(ATOM*, int);
 void calc_ring_center(RING*);
 void calc_ring_normal(RING*);
 void free_ring_list(RING_LIST*);
+void free_ring(RING*);
+void set_molecule_rings(MOLECULE*);
+
 
 void contacts2voronoi(ATOM*);
 void write_system_polyhedra(FILE*,SYSTEM*);
 void write_atom_polyhedron(FILE*,ATOM*,SETTINGS*);
 double estimate_contact_iarea(CONTACT*);
 
+int set_atom_axes(ATOM*);
 void set_molecule_atom_geometries(MOLECULE*,ATOM_TYPING_SCHEME*);
 void set_atom_geometry(ATOM*,ATOM_TYPING_SCHEME*);
 HBOND_GEOMETRY *get_hbond_geometry(char*);
@@ -1147,15 +1463,33 @@ double atom_hbond_energy(ATOM*,int);
 double hbond_energy(CONTACT*);
 double coord_score(ATOM_COORDINATION*,int);
 double hbond_geometry_score(CONTACT*);
-int hbond_flags_match(unsigned int,unsigned int);
+int hbond_flags_match(unsigned int,unsigned int,int);
 void write_coordination_system(FILE*,SYSTEM*);
 
 MOLECULE* read_molecule(char*);
+void write_molecule(MOLECULE*,char*);
 void read_molecule_fp(MOLECULE*);
 MOLECULE_LIST* read_molecule_list(char*);
-void write_atom_list(PLI_FILE*,ATOMLIST*,enum ATOM_STYLE,enum OUTPUT_FORMAT,unsigned long int);
-enum ATOM_STYLE get_atom_style(char*);
-void write_atom(PLI_FILE*,ATOM*,enum ATOM_STYLE,enum OUTPUT_FORMAT,unsigned long int);
+void write_atom_list(PLI_FILE*,ATOMLIST*);
+
+// obj2text.c
+void atom2text(ATOM*,char*);
+void bond2text(BOND*,char*);
+void residue2text(RESIDUE*,char*);
+void site2text(MAP_ISLAND*,char*);
+void set_atomio(char*,char*);
+void set_bondio(char*,char*);
+void set_residueio(char*,char*);
+void set_siteio(char*,char*);
+
+// json.c
+char* atomlist2json(ATOMLIST*);
+char* list2json(char**,int);
+
+// molio.c
+void write_atom(PLI_FILE*,ATOM*);
+void write_bond(PLI_FILE*,BOND*);
+void write_residue(PLI_FILE*,RESIDUE*);
 int duplicate_atom(ATOM*,MOLECULE*);
 
 FORCE_FIELD *get_ff(void);
@@ -1169,28 +1503,35 @@ double alpha_beta_correction(double);
 
 void init_histogram_settings();
 HISTOGRAM* read_histogram(PLI_FILE*,char*);
-HISTOGRAM* new_histogram(void);
+HISTOGRAM* create_histogram(void);
 HISTOGRAM* add_histogram(char*,int);
 void process_histogram(HISTOGRAM*);
 void reset_histogram(int);
-HISTOGRAM* clone_histogram(HISTOGRAM*);
+HISTOGRAM* clone_histogram(HISTOGRAM*,int);
 void set_histogram_extrema(HISTOGRAM*);
 double histogram_X2Y(HISTOGRAM*,double);
 HISTOGRAM* get_histogram(int);
 void write_histogram(HISTOGRAM*,ATOM_TYPE*,ATOM_TYPE*);
+void free_histogram(HISTOGRAM*);
+int calc_histogram_maximum(HISTOGRAM*,double*,double*);
+void normalise_histogram(HISTOGRAM*,int);
+void log_histogram(HISTOGRAM*);
+int remove_local_extreme(HISTOGRAM*);
+void histogram2xys(HISTOGRAM*,double,double,double,double,double*,double*,double*,int*);
 
 void run_score(SETTINGS*);
-void prep_score(SYSTEM*,PLI_SFUNC*);
-void unprep_score(SYSTEM*);
+void prep_score_system(SYSTEM*,PLI_SFUNC*);
+void unprep_score_system(SYSTEM*,FLAG,PLI_SFUNC*);
 void calc_system_ref_scores(SYSTEM*,PLI_SFUNC*);
 void score_system(SYSTEM*,PLI_SFUNC*);
 void minimise_system(SYSTEM*,PLI_SFUNC*);
-void init_score(SETTINGS*);
+void set_dof_score_gradient(DOF*,SYSTEM*,PLI_SFUNC*);
+double numerical_score_gradient(DOF*,SYSTEM*,double (*score_system)(struct System*));
 void init_system_scores(SYSTEM*);
 void init_atom_scores(ATOM*);
-void write_system_scores(PLI_FILE*,SYSTEM*,enum OUTPUT_FORMAT,unsigned long int);
-void write_atom_scores(PLI_FILE*,ATOM*,enum OUTPUT_FORMAT,unsigned long int);
-void write_contact_scores(PLI_FILE*,CONTACT*,enum OUTPUT_FORMAT,unsigned long int);
+void write_system_scores(PLI_FILE*,SYSTEM*);
+void write_atom_scores(PLI_FILE*,ATOM*);
+void write_contact_scores(PLI_FILE*,CONTACT*);
 void add_system_scores(SYSTEM*,SYSTEM*);
 void store_system_ref_scores(SYSTEM*);
 void store_atom_ref_scores(ATOM*);
@@ -1198,31 +1539,58 @@ void mirror_contact_scores(CONTACT*,CONTACT*);
 
 PLI_MODE* get_mode(char*);
 PLI_SFUNC* get_sfunc(char*);
-void pliff_score_system(SYSTEM*);
+
+void pliff_init(void);
+double pliff_score_system(SYSTEM*);
+double pliff_score_gradient(DOF*,SYSTEM*);
+double pliff_score_intra_covalent(SYSTEM*);
 void pliff_score_molecule(MOLECULE*);
 void pliff_score_contact(CONTACT*,ATOM_TYPING_SCHEME*,FORCE_FIELD*);
-void pliff_write_system_scores(PLI_FILE*,SYSTEM*,enum OUTPUT_FORMAT,unsigned long int);
-void pliff_write_atom_scores(PLI_FILE*,ATOM*,enum OUTPUT_FORMAT,unsigned long int);
-void pliff_write_contact_scores(PLI_FILE*,CONTACT*,enum OUTPUT_FORMAT,unsigned long int);
+void pliff_write_system_scores(PLI_FILE*,SYSTEM*);
+void pliff_write_atom_scores(PLI_FILE*,ATOM*);
+void pliff_write_contact_scores(PLI_FILE*,CONTACT*);
 void init_pliff_settings();
+double pliff_score_vs_histogram(int,double,int);
 
 void pliff_minimise_system(SYSTEM*);
 
 double molecule_internal_energy(MOLECULE*,ATOM_TYPING_SCHEME*,FORCE_FIELD*);
+double molecule_bond_energy(MOLECULE*);
+double molecule_bond_angle_energy(MOLECULE*);
+double molecule_torsion_energy(MOLECULE*);
+double molecule_vdw_energy(MOLECULE*,ATOM_TYPING_SCHEME*,FORCE_FIELD*,int);
 
 void minimise(SYSTEM*,PLI_SFUNC*,int);
 void init_minimise_settings(void);
 void read_minimise_settings(PLI_FILE*);
 
+LIST* get_lebedev_vectors(int);
 double** read_lebedev_sphere_points(int);
 
+LIST* new_list(char*,int,int);
+void init_list(LIST*,char*,int);
+void reset_list(LIST*);
+void* add_list_item(LIST*);
+void remove_list_item(LIST*,void*);
+void* get_list_item(LIST*,int);
+int item_in_list(LIST*,void*);
+void condense_list(LIST*);
+void free_list(LIST*);
+void store_list(LIST*,char*);
+LIST* get_list(char*,char*);
+LIST* atomlist2list(ATOMLIST*,char*);
+
+void* mem_claim(int);
 int** alloc_2d_imatrix(int,int);
+char** alloc_2d_cmatrix(int,int);
 double** alloc_2d_fmatrix(int,int);
 void free_2d_imatrix(int**);
+void free_2d_cmatrix(char**);
 void free_2d_fmatrix(double**);
 
 void normalise_bfactors(SYSTEM*);
 void calc_system_simb(SYSTEM*,int);
+void calc_molecule_ami(MOLECULE*,SETTINGS*);
 
 int flag_skipped_waters(SYSTEM*);
 void flag_active_waters(SYSTEM*);
@@ -1236,24 +1604,32 @@ void reset_system(SYSTEM*,int);
 void free_molsystem(SYSTEM*);
 void prep_system_molecules(SYSTEM*,unsigned int);
 void unprep_system_molecules(SYSTEM*,unsigned int);
+GRID* system_grid(SYSTEM*,double,double);
+LIST* system_active_atoms(SYSTEM*);
 
-SETTINGS* get_settings(int,char**);
+SETTINGS* get_settings(void);
+void prep_settings(int,char**);
+void unprep_settings(void);
 
-double lennard_jones_energy(double,double,double);
-double lennard_jones_energy_DE(double,double,double);
+double lennard_jones_energy(double,double,double,double);
 
-void score_system_constraints(SYSTEM*);
-void setup_list_atom_tethers(ATOMLIST*,double);
+double score_system_constraints(SYSTEM*);
+double constraint_score_gradient(DOF*,SYSTEM*);
+void prep_min_atom_tethers(SYSTEM*);
+void unprep_min_atom_tethers(SYSTEM*);
+void prep_template_atom_tethers(SYSTEM*);
+void unprep_template_atom_tethers(SYSTEM*);
 
 void set_rotatable_bonds(MOLECULE*);
 
 SYSMOLS* load_sysmols(SETTINGS*);
 
 unsigned int dof_get_space(char*);
+unsigned int dofs_molecule_space(unsigned int,unsigned int);
 void set_dof_list_shifts(DOF_LIST*,double);
 void apply_dof_list_shifts(DOF_LIST*);
 void apply_dof_shift(DOF*,double);
-DOF_LIST* setup_dof_list(SYSTEM*,unsigned int);
+DOF_LIST* setup_dof_list(SYSTEM*);
 void free_dof(DOF*);
 void free_dof_list(DOF_LIST*);
 void store_positions(ATOMLIST*,double**,double**,double**,double**);
@@ -1264,4 +1640,275 @@ void set_list_coords(ATOMLIST*,ATOM_COORDS*);
 void run_help(SETTINGS*);
 void params_init(int nargs,char **args);
 PLI_PARAM* params_get_parameter(char*);
+void params_set_parameter(PLI_PARAM*,char*);
+
+typedef struct AtomTypeList {
+  int n_types;
+  int n_alloc_types;
+  ATOM_TYPE **types;
+} ATOM_TYPE_LIST;
+
+typedef struct IntList {
+  int *items;
+  int n_items;
+  int n_allocated;
+} INT_LIST;
+
+INT_LIST* parse_int_csv(char *s, char *sep);
+void free_int_array (INT_LIST *array);
+void skip_atom_ids(MOLECULE *molecule, INT_LIST *skip_atom_ids);
+double molecule_max_size(MOLECULE *molecule);
+void title_case(char*);
+int word_in_text(char*,char*,char);
+char* nextword(char*,char,int*);
+int read_string_section(char*,char*);
+
+// triplet
+typedef struct Triplet {
+  ATOM *atom1;
+  ATOM *atom2;
+  ATOM *atom3;
+  double hbond_geom_score1;
+  double hbond_geom_score2;
+  double angle;
+} TRIPLET;
+
+typedef struct TripletList {
+  int ntriplets;
+  int n_alloc_triplets;
+  TRIPLET *triplets;
+} TRIPLETLIST;
+//
+void set_hbond_triplets_system(SYSTEM *system);
+void write_hbond_triplets_system(PLI_FILE*,SYSTEM*, enum OUTPUT_FORMAT);
+void write_hbond_triplets_atom(PLI_FILE*,ATOM*, enum OUTPUT_FORMAT);
+void write_hbond_triplet(PLI_FILE*,TRIPLET*, enum OUTPUT_FORMAT);
+int hbond_type_match(ATOM*,ATOM*);
+int connected_atoms(ATOM *atom1,ATOM *atom2,ATOM *last_atom,int max_bonds);
+int molecule_accessible(MAP *field, MOLECULE *molecule);
+double molecule_radius(MOLECULE *molecule);
+FIELD_PROBE* create_atom_type_probe(ATOM_TYPE *type, SETTINGS *settings, FIELD_PROBE *probe_in);
+int position_within_dist_molecule(double*, MOLECULE*, double, double);
+int uniform_rand_int(int, int);
+double uniform_rand(double, double);
+double normal_rand(double, double);
+int map_extreme_index(MAP*,int, char*,int*, int*, int*);
+
+BOOLEAN **alloc_2d_bool_matrix(int, int);
+void free_2d_bool_matrix(BOOLEAN **);
+void copy_2d_bool_matrix(BOOLEAN**, BOOLEAN**, int, int);
+BOOLEAN **create_adjacency_matrix (MOLECULE *);
+int is_in_iarray(int v, int *arr, int n);
+void set_double_array(double*,int,double);
+
+void get_selected_atom_indices(MOLECULE *molecule, int *ids);
+BOOLEAN* alloc_bool_array(int n);
+void print_grid(GRID*);
+void coords_bounds(ATOM_COORDS **coords, int n_coords, MOLECULE *molecule, double bounds[3][2]);
+GRID* coords2grid(ATOM_COORDS **coords, int n_coords, MOLECULE *molecule, double spacing, double padding, double *center);
+ATOMLIST* get_hbond_atomlist(MOLECULE *molecule);
+int position_within_dist_atomlist(double *pos, ATOMLIST *atomlist, double dist, double angle);
+void mask_map_cutoff(MAP *map, double cutoff, char *keep);
+ATOMLIST* molecule2hbonding_atoms(MOLECULE *molecule);
+int has_hbonding_atom(MOLECULE *molecule);
+MOLECULE* create_atom_type_molecules(ATOM_TYPE *type, int n_molecule, char *molecule_name, SETTINGS *settings);
+
+void set_molecule_internal(MOLECULE*);
+void init_grid(GRID*, double, double);
+void update_gridlimits(GRID*, double*);
+int position_within_dist_system(double*, SYSTEM*, double, double);
+void prep_system(SYSTEM*, unsigned int);
+void unprep_system(SYSTEM*, unsigned int);
+unsigned int dofs_get_space(char*);
+void shake_molecule(MOLECULE*);
+void shake_atom(ATOM*,double,double);
+void use_fixed_seed (void);
+TORSION* get_molecule_torsion(MOLECULE*,ATOM*,ATOM*);
+void set_torsion_angle(TORSION*,double);
+void calc_torsion_angle(TORSION*);
+void rotate_torsion(TORSION*,double);
+void set_molecule_torsions(MOLECULE*);
+double contact_angle(double*,double*,int);
+void free_3d_matrix(void***);
+
+double polynomial(double,double*,int);
+int weighted_asymmetric_parabola_fit(double*,double*,double*,int,double,double,double*,double*);
+int weighted_polynomial_fit(double*,double*,double*,int,int,double*,double*);
+int weighted_power_fit(double*,double*,double*,int,double*,double*);
+int weighted_linear_least_squares(double*,double*,double*,int,double*,double*,double*);
+int weighted_LJ_Eo_fit(double*,double*,double*,int,int,double*,double*);
+int weighted_LJ_fit(double*,double*,double*,int,int,double*,double*,double*);
+double normalised_fit_error(double*,double*,double*,int);
+double weighted_fit_error(double*,double*,double*,int);
+
+MAP* ligsite_map(SYSTEM*);
+MAP* ami_site_map(SYSTEM*);
+MAP* digsite_map(SYSTEM*);
+
+void pocket_run(SETTINGS*);
+double pocket_score(SYSTEM*);
+double atom_pocket_score(ATOM*);
+POCKET_MODE* pocket_mode(char*);
+void set_atom_depth_maps(SYSTEM*);
+double atom_depth_weight(ATOM*);
+
+void test_smarts(SETTINGS*);
+LIST* atom_matches(ATOM*,MOLECULE*,int);
+MOLECULE* smarts2mol(char*);
+void atoms2pattern(LIST*,MOLECULE*);
+void apply_pattern(MOLECULE*,ATOM**);
+
+void run_resolve(SETTINGS*);
+
+
+
+typedef struct MoleculeProbe {
+  char name[MAX_LINE_LEN];
+  MOLECULE *molecule;
+  ATOM_COORDS** orientations;
+  int n_orientations;
+  MAP *allocated_maps;
+  MAP **atom_maps;
+  //TODO: change to atom mappings
+  BOOLEAN *** auto_mappings;
+  int n_mappings;
+  int n_alloc_mappings;
+  double score;
+  int orientation_id;
+  int *selected_ids;
+} MOLECULE_PROBE;
+
+typedef struct ProbePose {
+  double center[4];
+  int orientation_index;
+  double score;
+  double **position;
+  double **water_positions;
+  int n_added_waters;
+  double water_score;
+} PROBE_POSE;
+
+typedef struct DockedWaters {
+  int n_waters;
+  MOLECULE *mols;
+  double score;
+} DOCKED_WATERS;
+
+void run_fragmap(SETTINGS*);
+void copy_field(MAP*, MAP**);
+void get_min_score_point(MAP*, int*);
+void copy_3d_double_matrix(double***, double***, int*);
+void copy_3d_int_matrix(int***, int***, int*);
+void copy_2d_int_matrix(int**, int**, int , int);
+MOLECULE_PROBE* alloc_molecule_probe(void);
+MOLECULE_PROBE* get_molecule_probe(char*, SETTINGS*, char*);
+
+
+typedef struct PoseList {
+  int max_n;
+  int n_poses;
+  PROBE_POSE **poses;
+  PROBE_POSE *worst_score_pose;
+  PROBE_POSE *best_score_pose;
+} POSE_LIST;
+
+typedef struct DivClusterSet {
+  POSE_LIST **pose_lists;
+  int n_alloc_clusters;
+  int n_poses;
+  int n_max_poses;
+  POSE_LIST *worst_score_cluster;
+  PROBE_POSE *allocated_poses;
+} CLUSTER_SET;
+
+enum DIST_TYPE {RMSD_DIST, CENTER_DIST};
+
+typedef struct ClusterSettings {
+  int save_poses;
+  int n_saved_poses;
+  int n_poses_per_orientation;
+  int n_poses_per_gridpoint;
+  char *saved_sdf_file;
+  char *saved_data_file;
+  int save_diverse_clusters;
+  int n_diverse_poses;
+  int diverse_cluster_size;
+  double save_cutoff_atom;
+  double cluster_cutoff;
+  double sqr_cluster_cutoff;
+  char *diverse_sdf_file_prefix;
+  char *diverse_data_file;
+  enum DIST_TYPE dist_type;
+  int min_dist;
+  int merge_clusters;
+  int save;
+  int save_peak_clusters;
+  int n_peaks;
+  int peak_cluster_size;
+  int minimise;
+} CLUSTER_SETTINGS;
+
+CLUSTER_SET* alloc_div_cluster_set(int,int,int);
+void free_div_cluster_set(CLUSTER_SET*);
+void save_diverse_pose(CLUSTER_SET*, MOLECULE_PROBE*, DOCKED_WATERS*);
+void write_cluster_set(CLUSTER_SET*, char*, MOLECULE_PROBE *probe, MOLECULE*);
+PROBE_POSE* alloc_poses(int, int, int);
+void free_poses(PROBE_POSE*);
+POSE_LIST* alloc_pose_list(int);
+void free_pose_list(POSE_LIST*);
+void save_pose(POSE_LIST*, PROBE_POSE *, MOLECULE_PROBE *probe);
+void write_pose_list(POSE_LIST*, MOLECULE*, ATOM_COORDS**);
+CLUSTER_SETTINGS* get_cluster_settings(void);
+void run_cluster(SETTINGS*);
+void init_cluster_settings();
+CLUSTER_SET* get_peak_clusters(MAP*, MAP*, MOLECULE_PROBE*, ATOM_COORDS**, CLUSTER_SETTINGS*, PROBE_POSE*, BOOLEAN***, int);
+void init_3d_poselist_matrix(MAP*);
+POSELIST_LITE*** alloc_3d_poselist_matrix(int,int,int);
+void add_pose_to_poselist(POSELIST_LITE*, int, double);
+
+typedef struct UllmanMatchList {
+  int n_matches;
+  int n_alloc_matches;
+  int n_atoms;
+  MATCH *matches;
+} ULLMAN_MATCH_LIST;
+
+typedef struct UllmanMappings {
+  int n_mappings;
+  int n_atoms1;
+  int n_atoms2;
+  int n_allocated;
+  BOOLEAN ***mappings;
+} ULLMAN_MAPPINGS;
+
+enum MATCH_PROTOCOL { MATCH_ALL,MATCH_UNIQUE,MATCH_FIRST };
+enum MATCH_QUALITY { MATCH_ATOM_TYPE,MATCH_NODE,MATCH_ELEMENT,MATCH_ANY };
+
+ULLMAN_MAPPINGS* find_ullman_mappings(MOLECULE*, MOLECULE*, enum MATCH_PROTOCOL, enum MATCH_QUALITY);
+ULLMAN_MATCH_LIST* find_ullman_matches(MOLECULE*,MOLECULE*,enum MATCH_PROTOCOL,enum MATCH_QUALITY);
+void do_ullman (MOLECULE *mola, MOLECULE *molb, void (*func) (BOOLEAN **));
+
+
+
+double sqr_distance_offset(double *v1,double *v2, double *offset1, double *offset2);
+double rms_coords_atleat(ATOM_COORDS *coords1, ATOM_COORDS *coords2, int *selected1, int *selected2, int n_selected, BOOLEAN ***isomorphs, int n_isomprphs, double upper_bound);
+double rms_coords(ATOM_COORDS *coords1, ATOM_COORDS *coords2, int *selected1, int *selected2, int n_selected, BOOLEAN ***isomorphs, int n_isomprphs, double*, double*);
+
+
+void set_molecule_min_coords(MOLECULE*, double*);
+
+
+int*** alloc_3d_int_matrix(int,int,int);
+void free_3d_int_matrix(int***);
+void move_grid_center(GRID*, double*);
+
+
+void set_mask_bit(unsigned char*,int);
+
+
+void mask_distant_points(MAP *map, SYSTEM *system, MOLECULE *molecule, ATOMLIST*, double max_dist, double angle);
+
+
+void print_vector(double *v);
+
 

@@ -1,4 +1,4 @@
-// Copyright 2015 Astex Therapautics Ltd.
+// Copyright 2015 Astex Therapeutics Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,7 +22,14 @@ static int UNIQUE_ATOM_ID = 0;
 
 
 
-static int linear_atom(ATOM*);
+static void set_molecule_hydrogens(MOLECULE*);
+static void set_atom_hydrogens(ATOM*);
+static void set_atom_hydrogens_from_bonds(ATOM*);
+static void set_atom_hydrogens_from_map(ATOM*,MAP*);
+static void add_atom_hydrogen(ATOM*,ATOM*);
+static void set_molecule_substructures(MOLECULE*);
+static void set_atom_substructure(ATOM*);
+
 static void check_molecule_dict(MOLECULE*);
 static void set_atom_connections(ATOM*,int);
 static void molecule2connections(ATOM*,MOLECULE*,MOLECULE*,ATOM*,int,int);
@@ -30,18 +37,13 @@ static void bonds2connections(ATOM*,MOLECULE*);
 static void map2connections(ATOM*,MAP*,MOLECULE*,ATOM*,int,int);
 static void pair2connections(ATOM*,ATOM*,MOLECULE*,ATOM*,int,int);
 static void update_atom_gridlist(ATOM*);
-
-
-
-void atom2name(ATOM *atom,char *name) {
-
-  char chain,icode;
-
-  chain = (atom->chain == ' ') ? '_' : atom->chain;
-  icode = (atom->icode == ' ') ? '_' : atom->icode;
-
-  sprintf(name,"%6d %-6s %-6s %c %5d %c",atom->id,atom->name,atom->subname,chain,atom->subid,icode);
-}
+static void add_atom_type_to_list(ATOM_TYPE*, ATOM_TYPE_LIST*);
+static void set_molecule_edges(MOLECULE*);
+static void set_atom_edges(ATOM*);
+static ATOMLIST* molecule_atom_ids2atoms(MOLECULE*);
+static ATOMLIST* molecule2shell(MOLECULE*,MOLECULE*,double);
+static void select_molecule_atoms(MOLECULE*,char*);
+static MOLECULE_PROBE* create_mol_probe_from_file(char*, SETTINGS*, INT_LIST*);
 
 
 
@@ -86,6 +88,7 @@ void init_atom(ATOM *atom) {
   atom->bfactor = 0.0;
   atom->tdf = 0.0;
   atom->td = 0.0;
+  atom->lnPu = 0.0;
   atom->vdw_radius = DEFAULT_VDW_RADIUS;
   atom->vdw_radius_H2O = DEFAULT_VDW_RADIUS + 1.4;
 
@@ -95,12 +98,14 @@ void init_atom(ATOM *atom) {
   atom->gridmap = NULL;
   atom->gridlist = NULL;
   atom->connections = NULL;
+  atom->h_connections = NULL;
   atom->contactlist = NULL;
   atom->geometry = NULL;
   atom->hbond_geometry = NULL;
   atom->coordination = NULL;
   atom->ring = NULL;
   atom->molecule = NULL;
+  atom->substructure = NULL;
   atom->set = 0;
   atom->planar = -1;
   atom->n_hydrogens = 0;
@@ -129,6 +134,17 @@ void init_atom(ATOM *atom) {
 
   atom->flags = 0;
   atom->error_flags = 0;
+  //
+  atom->tripletlist = NULL;
+  atom->type_id_file = -1;
+
+  atom->hybridisation = 0;
+  atom->query = NULL;
+  atom->fgroup = NULL;
+
+  atom->depth_map = NULL;
+
+  atom->hydrogens = NULL;
 }
 
 
@@ -136,6 +152,7 @@ void init_atom(ATOM *atom) {
 void unprep_atom(ATOM *atom) {
 
   free_atomlist(atom->connections);
+  free_atomlist(atom->h_connections);
   free_contactlist(atom->contactlist);
 
   if (atom->coordination) {
@@ -144,8 +161,13 @@ void unprep_atom(ATOM *atom) {
   }
 
   if (atom->ring) {
+    free_ring(atom->ring);
+    atom->ring = NULL;
+  }
 
-    free(atom->ring);
+  if (atom->query) {
+
+    free(atom->query);
   }
 
   atom->node = NULL;
@@ -154,9 +176,16 @@ void unprep_atom(ATOM *atom) {
   atom->hbond_geometry = NULL;
 
   atom->connections = NULL;
+  atom->h_connections = NULL;
   atom->contactlist = NULL;
   atom->coordination = NULL;
   atom->ring = NULL;
+
+  atom->query = NULL;
+
+  atom->n_edges = 0;
+
+  atom->hydrogens = NULL;
 }
 
 
@@ -167,6 +196,8 @@ void init_bond(BOND *bond) {
   bond->atom1 = NULL;
   bond->atom2 = NULL;
   bond->torsion = NULL;
+
+  bond->flags = 0;
 }
 
 
@@ -185,6 +216,8 @@ void init_molecule(MOLECULE *molecule,int n) {
   molecule->n_alloc_atoms = n;
   molecule->n_alloc_bonds = n;
 
+  molecule->n_alloc_bond_angles = 0;
+
   if (n) {
 
     molecule->atom = (ATOM*) calloc(molecule->n_alloc_atoms,sizeof(ATOM));
@@ -195,6 +228,9 @@ void init_molecule(MOLECULE *molecule,int n) {
     molecule->atom = NULL;
     molecule->bond = NULL;
   }
+
+  molecule->bond_angles = NULL;
+  molecule->n_bond_angles = 0;
 
   molecule->torsions = NULL;
   molecule->n_torsions = 0;
@@ -212,8 +248,12 @@ void init_molecule(MOLECULE *molecule,int n) {
 
   molecule->covalent_map = NULL;
   molecule->contacts_map = NULL;
+  molecule->conmap = NULL;
+  molecule->depth_map = NULL;
 
+  molecule->atom_ids = NULL;
   molecule->selection = NULL;
+  molecule->active_atoms = NULL;
   molecule->molsystem = NULL;
 
   molecule->n_active_waters = 0;
@@ -223,6 +263,18 @@ void init_molecule(MOLECULE *molecule,int n) {
   molecule->score = 0.0;
 
   molecule->system = NULL;
+
+  molecule->fgroups = NULL;
+  molecule->feature_lists = NULL;
+  molecule->features = NULL;
+
+  molecule->nonh_atoms = NULL;
+  molecule->hydrogens = NULL;
+  molecule->hydrogen_lists = NULL;
+
+  molecule->substructures = NULL;
+  molecule->subatoms = NULL;
+  molecule->atom_queries = NULL;
 }
 
 
@@ -249,15 +301,15 @@ void prep_molecule(MOLECULE *molecule,SETTINGS *settings) {
 
   select_molecule_atoms(molecule,settings->selection);
 
+  // molecule active atoms:
+
+  molecule->active_atoms = molecule_active_atoms(molecule);
+
   if (molecule->use_grids) {
 
     molecule->covalent_map = molecule2atommap(molecule,settings->max_covalent_dist,NULL,0);
     molecule->contacts_map = molecule2atommap(molecule,settings->max_contact_dist,NULL,1);
   }
-
-  // create molecule system (for molecule in isolation):
-
-  molecule->molsystem = molecule2system(molecule,settings);
 
   // set molecule connections:
 
@@ -284,13 +336,30 @@ void prep_molecule(MOLECULE *molecule,SETTINGS *settings) {
 
   set_molecule_connections(molecule,0);
 
+  set_molecule_edges(molecule);
+
+  set_molecule_hydrogens(molecule);
+
+  set_molecule_substructures(molecule);
+
   // set nodes, atom types and radii:
 
   set_molecule_atom_nodes(molecule,settings->atom_typing_scheme);
+
+  // set rings for ligands
+  if (molecule->flags & LIGAND_MOLECULE) {
+
+    set_molecule_rings(molecule);
+  }
+
   set_molecule_atom_types(molecule,settings->atom_typing_scheme);
   set_molecule_vdw_radii(molecule,settings->water_vdw_radius);
   set_molecule_atom_geometries(molecule,settings->atom_typing_scheme);
   
+  // create molecule system (for molecule in isolation):
+
+  molecule->molsystem = molecule2system(molecule,settings);
+
   // set special atom types (heme nitrogens for now):
 
   atom_type_heme_nitrogens(molecule->molsystem);
@@ -302,9 +371,20 @@ void prep_molecule(MOLECULE *molecule,SETTINGS *settings) {
     set_molecule_internal(molecule);
   }
   
-  // simulated bfactors:
+  // atomic mobility factors:
 
-  //calc_system_simb(molecule->molsystem,1);
+  if ((molecule->flags & PROTEIN_MOLECULE) && ((params_get_parameter("ff_ami_scaling"))->value.i)) {
+
+    calc_molecule_ami(molecule,settings);
+  }
+
+  // apply shake if requested:
+
+  if (((molecule->flags & PROTEIN_MOLECULE) && ((params_get_parameter("shake_protein"))->value.i)) ||
+      ((molecule->flags & LIGAND_MOLECULE) && ((params_get_parameter("shake_ligand"))->value.i))) {
+
+    shake_molecule(molecule);
+  }
 
   reset_system(molecule->molsystem,0);
 
@@ -326,10 +406,20 @@ void unprep_molecule(MOLECULE *molecule,SETTINGS *settings) {
 
   free_map(molecule->covalent_map);
   free_map(molecule->contacts_map);
+  free_map(molecule->conmap);
+
+  molecule->covalent_map = NULL;
+  molecule->contacts_map = NULL;
+  molecule->conmap = NULL;
 
   for (i=0,atom=molecule->atom;i<molecule->natoms;i++,atom++) {
 
     unprep_atom(atom);
+  }
+
+  if (molecule->bond_angles) {
+
+    free(molecule->bond_angles);
   }
 
   if (molecule->torsions) {
@@ -338,10 +428,18 @@ void unprep_molecule(MOLECULE *molecule,SETTINGS *settings) {
 
       free_atomlist(torsion->alist1);
       free_atomlist(torsion->alist2);
-      free_atomlist(torsion->rotlist);
+
+      torsion->rotlist = NULL;
     }
 
     free(molecule->torsions);
+  }
+
+  if (molecule->fgroups) {
+
+    free_list(molecule->fgroups);
+
+    molecule->fgroups = NULL;
   }
 
   free_2d_imatrix(molecule->nb_atom_pairs);
@@ -356,11 +454,37 @@ void unprep_molecule(MOLECULE *molecule,SETTINGS *settings) {
 
   molecule->molsystem = NULL;
 
+  molecule->bond_angles = NULL;
+  molecule->n_bond_angles = 0;
+  molecule->n_alloc_bond_angles = 0;
+
   molecule->torsions = NULL;
   molecule->n_torsions = 0;
   molecule->nb_atom_pairs = NULL;
   molecule->selection = NULL;
   molecule->molsystem = NULL;
+
+  free_list(molecule->active_atoms);
+  free_list(molecule->nonh_atoms);
+  free_list(molecule->hydrogens);
+  free_list(molecule->hydrogen_lists);
+  free_list(molecule->fgroups);
+  free_list(molecule->feature_lists);
+  free_list(molecule->features);
+  free_list(molecule->substructures);
+  free_list(molecule->subatoms);
+  free_list(molecule->atom_queries);
+
+  molecule->active_atoms = NULL;
+  molecule->nonh_atoms = NULL;
+  molecule->hydrogens = NULL;
+  molecule->hydrogen_lists = NULL;
+  molecule->fgroups = NULL;
+  molecule->feature_lists = NULL;
+  molecule->features = NULL;
+  molecule->substructures = NULL;
+  molecule->subatoms = NULL;
+  molecule->atom_queries = NULL;
 
   if (molecule->lazy_load) {
 
@@ -386,6 +510,29 @@ void unprep_molecule(MOLECULE *molecule,SETTINGS *settings) {
   }
 
   molecule->prepped = 0;
+}
+
+
+
+void free_molecule(MOLECULE *molecule) {
+
+  SETTINGS *settings;
+
+  settings = get_settings();
+
+  unprep_molecule(molecule,settings);
+
+  if (molecule->atom) {
+
+    free(molecule->atom);
+  }
+
+  if (molecule->bond) {
+
+    free(molecule->bond);
+  }
+
+  free(molecule);
 }
 
 
@@ -536,46 +683,6 @@ void delete_bond(MOLECULE *molecule,int id) {
 
 
 
-MAP* system2atommap(SYSTEM *system,double spacing) {
-
-  GRID *grid;
-  MAP *map;
-
-  grid = system2grid(system,spacing,0.0);
-
-  if (grid == NULL) {
-
-    return(NULL);
-  }
-
-  map = new_map("PLI system atom map");
-
-  map->grid = grid;
-
-  map->type = ATOMLIST_MAP;
-
-  alloc_map_matrix(map);
-
-  if (system->protein != NULL) {
-
-    map = molecule2atommap(system->protein,spacing,map,0);
-  }
-
-  if (system->ligand != NULL) {
-
-    map = molecule2atommap(system->ligand,spacing,map,0);
-  }
-
-  if (system->symmetry != NULL) {
-
-    map = molecule2atommap(system->symmetry,spacing,map,0);
-  }
-
-  return(map);
-}
-
-
-
 GRID* system2grid(SYSTEM *system,double spacing,double padding) {
 
   GRID *grid = NULL;
@@ -610,11 +717,9 @@ MAP* molecule2atommap(MOLECULE *molecule,double spacing,MAP *map,int set_gridlis
 
   if (map == NULL) {
 
-    map = new_map("PLI molecule atom map");
+    map = new_map("PLI molecule atom map","atomlist",NULL);
 
     map->grid = molecule2grid(molecule,spacing,3.0,NULL);
-
-    map->type = ATOMLIST_MAP;
 
     alloc_map_matrix(map);
   }
@@ -655,19 +760,12 @@ MAP* molecule2atommap(MOLECULE *molecule,double spacing,MAP *map,int set_gridlis
 GRID* molecule2grid(MOLECULE *molecule,double spacing,double padding,GRID *grid) {
 
   int i;
-  ATOM *atom;
+  ATOM *atom,**atomp;
+  LIST *active_atoms;
 
-  if (grid == NULL) {
+  grid = (grid) ? grid : new_grid(spacing,padding);
 
-    grid = (GRID*) malloc(sizeof(GRID));
-
-    if (grid == NULL) {
-
-      error_fn("molecule2grid: out of memory allocating grid");
-    }
-
-    init_grid(grid,spacing,padding);
-  }
+  // all molecule atoms are used to define grid:
 
   for (i=0,atom=molecule->atom;i<molecule->natoms;i++,atom++) {
 
@@ -683,27 +781,40 @@ GRID* molecule2grid(MOLECULE *molecule,double spacing,double padding,GRID *grid)
 
 
 
-GRID* atomlist2grid(ATOMLIST *list,double spacing,double padding,GRID *gridin) {
+GRID* alist2grid(LIST *list,double spacing,double padding,GRID *grid) {
 
   int i;
   ATOM **atomp,*atom;
-  GRID *grid;
 
-  if (gridin == NULL) {
+  grid = (grid) ? grid : new_grid(spacing,padding);
 
-    grid = (GRID*) malloc(sizeof(GRID));
+  for (i=0,atomp=(ATOM**) list->items;i<list->n_items;i++,atomp++) {
 
-    if (grid == NULL) {
+    atom = *atomp;
 
-      error_fn("atomlist2grid: out of memory allocating grid");
+    // TODO: Marcel, please check
+    if ((!(atom->flags & SKIP_ATOM)) && (atom->element->id != HYDROGEN)) {
+    //if ((!(atom->flags & SKIP_ATOM)) || (atom->element->id == HYDROGEN)) {
+
+      update_gridlimits(grid,(*atomp)->position);
     }
-
-    init_grid(grid,spacing,padding);
-
-  } else {
-
-    grid = gridin;
   }
+
+  grid->npoints[0] = grid->limit[0][1] - grid->limit[0][0] + 1;
+  grid->npoints[1] = grid->limit[1][1] - grid->limit[1][0] + 1;
+  grid->npoints[2] = grid->limit[2][1] - grid->limit[2][0] + 1;
+
+  return(grid);
+}
+
+
+
+GRID* atomlist2grid(ATOMLIST *list,double spacing,double padding,GRID *grid) {
+
+  int i;
+  ATOM **atomp,*atom;
+
+  grid = (grid) ? grid : new_grid(spacing,padding);
 
   for (i=0,atomp=list->atom;i<list->natoms;i++,atomp++) {
 
@@ -747,6 +858,46 @@ void move_atom(ATOM *atom,double *position) {
 
 
 
+void move_molecule_centre(MOLECULE *molecule, double *position) {
+  int i;
+  double shift[3];
+  ATOM *atom;
+  for (i=0; i<3; i++) {
+    shift[i] = position[i] - molecule->geometric_center[i];
+  }
+  for (i=0,atom=molecule->atom;i<molecule->natoms;i++,atom++) {
+    shift_atom(atom, shift);
+  }
+  copy_vector(position, molecule->geometric_center);
+}
+
+double molecule_radius(MOLECULE *molecule) {
+  int i;
+  ATOM *atom;
+  double dist, molecule_radius;
+  int atom_found;
+
+  atom_found = 0;
+  add_molecule_center(molecule, 0);
+  molecule_radius = 0.0;
+
+  for (i=0, atom=molecule->atom; i<molecule->natoms; i++, atom++) {
+    if ((atom->element->id == HYDROGEN) || (atom->flags & SKIP_ATOM)){
+      continue;
+    }
+    dist = distance(molecule->geometric_center, atom->position);
+    if (dist > molecule_radius) {
+      molecule_radius = dist;
+      atom_found = 1;
+    }
+  }
+  if (! atom_found) {
+    error_fn("%s: There is no selected atom in the molecule", __func__);
+  }
+  return molecule_radius;
+}
+
+
 void shift_atom(ATOM *atom,double *shift) {
 
   int i;
@@ -767,6 +918,138 @@ void shift_atom(ATOM *atom,double *shift) {
   atom->cstatus = ATOM_NOTHING_CALCULATED;
 }
 
+void shift_molecule(MOLECULE *molecule, double *shift) {
+  int i, x;
+  ATOM *atom;
+  ATOM_GEOMETRY *geometry;
+  HBOND_GEOMETRY *hbond_geometry;
+  double *vpt;
+
+  for (i=0,atom=molecule->atom;i<molecule->natoms;i++,atom++) {
+    shift_atom(atom, shift);
+  }
+}
+
+void skip_atom_ids(MOLECULE *molecule, INT_LIST *skip_atom_ids) {
+  int i, j;
+  ATOM *atom;
+  for (i=0, atom=molecule->atom; i<molecule->natoms; i++, atom++) {
+    for (j=0; j<skip_atom_ids->n_items; j++) {
+      if (skip_atom_ids->items[j] == atom->id) {
+	//printf("skiping atom %d\n", atom->id);
+	atom->flags |= SKIP_ATOM;
+	break;
+      }
+    }
+  }
+}
+
+void orient_molecule(MOLECULE *molecule, double *lebedev_point, double rotation_angle) {
+  int i;
+  ATOM *atom;
+  double shift[4], angle, rot_mat[4][4], cp[4];
+  add_molecule_center(molecule, 0);
+
+  double coords_origin[4] = {0.0, 0.0, 0.0, 1.0};
+  move_molecule_centre(molecule, coords_origin);
+
+  // angle b/w lebedev point and the axis (center->atom1)
+  if (distance(molecule->atom->position, molecule->geometric_center) > 1e-3) {
+    angle = vector_angle(molecule->atom->position, lebedev_point);
+  // If the first atom is on the center
+  } else {
+    angle = vector_angle((molecule->atom+1)->position, lebedev_point);
+  }
+
+  //TODO: move to rotation_matrix function
+  if (angle > 0.0) {
+    if (abs(angle-180.0) < 0.0001) {
+      scalar_matrix(-1.0, rot_mat);
+    } else {
+      calc_crossproduct(molecule->atom->position, lebedev_point, cp);
+      rotation_matrix(molecule->geometric_center, cp, angle, rot_mat);
+    }
+    for (i=0,atom=molecule->atom; i<molecule->natoms; i++,atom++) {
+      transform_atom(atom, rot_mat);
+    }
+  }
+
+  // rotate about the lebedev axis
+  if (rotation_angle > 0.0) {
+    if (abs(rotation_angle-180.0) < 0.0001) {
+      scalar_matrix(-1.0, rot_mat);
+    } else {
+      rotation_matrix(molecule->geometric_center, lebedev_point, rotation_angle, rot_mat);
+    }
+    for (i=0,atom=molecule->atom; i<molecule->natoms; i++,atom++) {
+      transform_atom(atom, rot_mat);
+    }
+  }
+
+}
+
+
+ATOM_COORDS** get_molecule_orientations(MOLECULE *molecule, int n_lebedev_points, double **lebdev_axes, int n_rot_lebedev_axis, int n_dihedral_steps, int *n_orientations) {
+  //PLI_FILE *tempfile;
+  //tempfile = open_file("probe_orientations.sdf", "w");
+  //ATOMLIST *atomlist;
+
+  ATOM_COORDS **ppcoords, *pinitial_coords;
+  int i, j, k, l, index;
+  //int n_orientations;
+  double lebedev_point[4];
+  double lebedev_rot_angle;
+  ATOM **atomp;
+  double rm[4][4];
+  double origin[4] = {0.0, 0.0, 0.0, 1.0};
+
+  pinitial_coords = molecule2coords(molecule);
+  if (n_dihedral_steps) {
+    (*n_orientations) = n_lebedev_points * n_rot_lebedev_axis * n_dihedral_steps;
+  } else {
+    (*n_orientations) = n_lebedev_points * n_rot_lebedev_axis;
+  }
+
+  ppcoords = (ATOM_COORDS**) calloc((*n_orientations), sizeof(ATOM_COORDS*));
+
+  if (ppcoords == NULL) {
+    error_fn("%s: out of memory allocating coords");
+  }
+
+  for (i=0; i<n_lebedev_points; i++) {
+    for (j=0; j<n_rot_lebedev_axis; j++) {
+      index = i*n_rot_lebedev_axis+j;
+      memcpy(lebedev_point,*(lebdev_axes + i), 3*sizeof(double));
+      lebedev_rot_angle = (360.0/(double) n_rot_lebedev_axis) * (double) j;
+      orient_molecule(molecule, lebedev_point, lebedev_rot_angle); // also centers on the origin
+
+      //
+      if (n_dihedral_steps) {
+        for (k=0; k<n_dihedral_steps; k++) {
+          index = i*n_rot_lebedev_axis*n_dihedral_steps + j*n_dihedral_steps + k;
+          rotation_matrix(molecule->torsions->atom1->position, molecule->torsions->atom2->position, 360.0 / (double) n_dihedral_steps, rm);
+          for (l=0,atomp=molecule->torsions->rotlist->atom;l<molecule->torsions->rotlist->natoms;l++,atomp++) {
+            transform_atom(*atomp,rm);
+          }
+          // center on the origin
+          add_molecule_center(molecule, 0);
+          move_molecule_centre(molecule, origin);
+          *(ppcoords + index) = molecule2coords(molecule);
+        }
+      } else {
+        *(ppcoords + index) = molecule2coords(molecule);
+      }
+      coords2molecule(pinitial_coords, molecule);
+    }
+  }
+
+
+  // reset the center
+  add_molecule_center(molecule, 0);
+  free(pinitial_coords);
+  //close_file(tempfile);
+  return(ppcoords);
+}
 
 
 void transform_atom(ATOM *atom,double m[4][4]) {
@@ -849,30 +1132,70 @@ void transform_atom(ATOM *atom,double m[4][4]) {
 
 
 
-void select_molecule_atoms(MOLECULE *molecule,char *selstr) {
+static void select_molecule_atoms(MOLECULE *molecule,char *selstr) {
+
+  // symmetry molecules are part of the calculation but are not selected
+
+  if (molecule->flags & SYMMETRY_MOLECULE) {
+
+    return;
+  }
 
   if (molecule->flags & PROTEIN_MOLECULE) {
 
     if ((!strcmp(selstr,"protein")) || (!strcmp(selstr,"all"))) {
 
-      molecule->selection = molecule2atoms(molecule);
+      molecule->selection = (molecule->atom_ids) ? molecule_atom_ids2atoms(molecule) : molecule2atoms(molecule);
 
     } else if (!strcmp(selstr,"water")) {
 
-      molecule->selection = molecule2waters(molecule);
+      molecule->selection = (molecule->atom_ids) ? molecule_atom_ids2atoms(molecule) : molecule2waters(molecule);
 
     } else if ((!strcmp(selstr,"complex")) || (!strcmp(selstr,"site"))) {
 
-      molecule->selection = molecule2site(molecule);
+      molecule->selection = (molecule->atom_ids) ? molecule_atom_ids2atoms(molecule) : molecule2site(molecule);
+
+      if (molecule->selection == NULL) {
+
+	error_fn("%s: failed to define site - check site ligand or site atoms",__func__);
+      }
     }
 
   } else if (molecule->flags & LIGAND_MOLECULE) {
 
     if ((!strcmp(selstr,"ligand")) || (!strcmp(selstr,"complex")) || (!strcmp(selstr,"all"))) {
 
-      molecule->selection = molecule2atoms(molecule);
+      molecule->selection = (molecule->atom_ids) ? molecule_atom_ids2atoms(molecule) : molecule2atoms(molecule);
     }
   }
+}
+
+
+
+LIST* molecule_active_atoms(MOLECULE *molecule) {
+
+  ATOMLIST *alist;
+  LIST *list;
+
+  alist = NULL;
+
+  if (molecule->atom_ids) {
+
+    alist = molecule_atom_ids2atoms(molecule);
+    
+  } else {
+    
+    alist = molecule2site(molecule);
+    
+    if (!alist) {
+      
+      alist = molecule2atoms(molecule);
+    }
+  }
+
+  list = (alist) ? atomlist2list(alist,"molecule active atoms") : NULL;
+
+  return(list);
 }
 
 
@@ -925,42 +1248,82 @@ static void update_atom_gridlist(ATOM *atom) {
 
 
 
-void molecule_center(MOLECULE *molecule,double *center) {
+void add_molecule_center(MOLECULE *molecule, int mass_weighted) {
 
   int i,j,n;
   double *v;
   ATOM *atom;
-
+  double center[4];
   null_vector(center);
-
+  int total_mass = 0;
   n = 0;
 
   for (i=0,atom=molecule->atom;i<molecule->natoms;i++,atom++) {
 
-    if (atom->element->id != HYDROGEN) {
-
+    if ((atom->element->id != HYDROGEN) && (!(atom->flags & SKIP_ATOM))) {
+      total_mass += atom->element->id;
+      n++;
       v = atom->position;
 
       for (j=0;j<3;j++) {
-
-        center[j] += v[j];
+	if (mass_weighted == 1) {
+	  center[j] += v[j] * atom->element->id;
+	} else {
+	  center[j] += v[j];
+	}
       }
+    }
+  }
+  for (i=0;i<3;i++) {
 
-      n++;
+    if (mass_weighted == 1) {
+      center[i] /= (double) total_mass;
+    } else {
+      center[i] /= (double) n;
     }
   }
 
-  for (i=0;i<3;i++) {
-
-    center[i] /= n;
-  }
-
   center[3] = 1.0;
+  if (mass_weighted == 1) {
+    copy_vector(center, molecule->center_of_mass);
+  } else {
+    copy_vector(center, molecule->geometric_center);
+  }
 }
 
 
+void add_molecule_moi(MOLECULE *molecule) {
+  int i, j;
+  ATOM *atom;
+  // TODO: recalculate center of mass (com) just in case... may be add a way to check
+  add_molecule_center(molecule, 1);
+  double com2[4];
+  null_vector(com2);
+  double pos2[4];
 
-ATOMLIST* molecule_sphere_to_atom_list(MOLECULE *molecule1,MOLECULE *molecule2,double max_dist) {
+  double moi[4];
+  null_vector(moi);
+
+  for (i=0; i<3; i++) {
+    com2[i] = molecule->center_of_mass[i] * molecule->center_of_mass[i];
+  }
+
+  for (i=0,atom=molecule->atom;i<molecule->natoms;i++,atom++) {
+    if (atom->element->id != HYDROGEN) {
+      for (j=0; j<3; j++){
+	pos2[i] = atom->position[i] * atom->position[i];
+      }
+      moi[0] += ((atom->id * (pos2[1] + pos2[2])) - com2[1] - com2[2]);
+      moi[1] += ((atom->id * (pos2[0] + pos2[2])) - com2[0] - com2[2]);
+      moi[2] += ((atom->id * (pos2[0] + pos2[1])) - com2[0] - com2[1]);
+    }
+  }
+  copy_vector(moi, molecule->moment_of_inertia);
+  //printf("moi from fn: %.2f %.2f %.2f", moi[0], moi[1], moi[2]);
+}
+
+
+static ATOMLIST* molecule2shell(MOLECULE *molecule1,MOLECULE *molecule2,double max_dist) {
 
   int i,j,contact;
   ATOM *atom1,*atom2;
@@ -1002,28 +1365,31 @@ ATOMLIST* molecule_sphere_to_atom_list(MOLECULE *molecule1,MOLECULE *molecule2,d
 
 
 
-ATOMLIST* molecule_atom_ids_to_atom_list(MOLECULE *molecule,int *atom_ids,int n_atom_ids) {
+static ATOMLIST* molecule_atom_ids2atoms(MOLECULE *molecule) {
 
-  int i,j,*atom_id;
+  int i,*atom_id;
   ATOM *atom;
   ATOMLIST *list;
+
+  if (!molecule->atom_ids) {
+
+    return(NULL);
+  }
 
   list = alloc_atomlist();
 
   init_atomlist(list);
 
-  for (i=0,atom=molecule->atom;i<molecule->natoms;i++,atom++) {
+  for (i=0,atom_id=(int*) molecule->atom_ids->items;i<molecule->atom_ids->n_items;i++,atom_id++) {
 
-    if ((atom->element != NULL) && (atom->element->id != HYDROGEN)) {
+    atom = get_atom(molecule,*atom_id);
 
-      for (j=0,atom_id=atom_ids;j<n_atom_ids;j++,atom_id++) {
+    if (!atom) {
 
-	if (*atom_id == atom->id) {
-
-	  add_atom_to_list(list,atom,0);
-	}
-      }
+      error_fn("%s: could not find atom %d in molecule '%s'",__func__,*atom_id,molecule->name);
     }
+
+    add_atom_to_list(list,atom,0);
   }
 
   return(list);
@@ -1317,7 +1683,7 @@ ATOMLIST* molecule2atoms(MOLECULE *molecule) {
   }
 
   init_atomlist(list);
-
+    
   add_molecule_atoms_to_list(list,molecule);
 
   return(list);
@@ -1354,6 +1720,31 @@ ATOMLIST* molecule2waters(MOLECULE *molecule) {
   }
 
   return(list);
+}
+
+
+
+ATOMLIST* molecule2site(MOLECULE *molecule) {
+
+  char *def_type;
+  ATOMLIST *site_atoms;
+
+  site_atoms = NULL;
+
+  if (molecule->flags & PROTEIN_MOLECULE) {
+
+    def_type = (params_get_parameter("site_def_type"))->value.s;
+    
+    if (!strcmp(def_type,"ligand")) {
+      
+      if ((molecule->system) && (molecule->system->site_ligand)) {
+	
+	site_atoms = molecule2shell(molecule,molecule->system->site_ligand,(params_get_parameter("site_max_dist"))->value.d);
+      }
+    }
+  }
+
+  return(site_atoms);
 }
 
 
@@ -1620,34 +2011,383 @@ BONDLIST* atomlist2bondlist(ATOMLIST *atomlist) {
 }
 
 
+// TODO: atom edges should replace atom connections
+// as the current connections are just atom lists
+// and cannot contain information on the nature of the edge/bond
 
-void set_system_connections(SYSTEM *system) {
+static void set_molecule_edges(MOLECULE *molecule) {
 
-  int i,j;
+  int i;
   ATOM *atom;
-  MOLECULE **moleculep,*molecule;
-  MOLECULE_LIST *list;
 
-  list = system->molecule_list;
+  for (i=0,atom=molecule->atom;i<molecule->natoms;i++,atom++) {
 
-  if (list == NULL) {
+    set_atom_edges(atom);
+  }
+}
+
+
+
+static void set_molecule_hydrogens(MOLECULE *molecule) {
+
+  int i,n_hydrogens;
+  LIST *nonh_atoms;
+  ATOM **atomp,*atom;
+
+  if (molecule->hydrogens != NULL) {
+
+    error_fn("%s: can only set hydrogens once for molecule %s",__func__,molecule->name);
+  }
+
+  // create list of non-hydrogen atoms:
+
+  molecule->nonh_atoms = new_list("non-hydrogen atoms",sizeof(ATOM*),0);
+
+  nonh_atoms = molecule->nonh_atoms;
+
+  for (i=0,atom=molecule->atom;i<molecule->natoms;i++,atom++) {
+ 
+    if (atom->element->id != HYDROGEN) {
+  
+      atomp = (ATOM**) add_list_item(nonh_atoms);
+
+      *atomp = atom;
+    }
+  }
+
+  // create lists of hydrogen atoms:
+
+  n_hydrogens = molecule->natoms - nonh_atoms->n_items;
+
+  if (n_hydrogens) {
+
+    molecule->hydrogens = new_list("hydrogen atoms",sizeof(ATOM*),n_hydrogens);
+
+    molecule->hydrogen_lists = new_list("hydrogen lists",sizeof(LIST),nonh_atoms->n_items);
+
+    for (i=0,atomp=(ATOM**) nonh_atoms->items;i<nonh_atoms->n_items;i++,atomp++) {
+      
+      set_atom_hydrogens(*atomp);
+    }
+  }
+}
+
+
+
+static void set_atom_hydrogens(ATOM *atom) {
+
+  int i;
+  double Do,D;
+  ATOM *hydrogen;
+  MOLECULE *molecule;
+  MAP *covalent_map;
+
+  if (atom->hydrogens) {
+
+    error_fn("%s: can only set atom hydrogens once",__func__);
+  }
+
+  molecule = atom->molecule;
+
+  atom->hydrogens = (LIST*) add_list_item(molecule->hydrogen_lists);
+  
+  atom->hydrogens->items = get_list_item(molecule->hydrogens,molecule->hydrogens->n_items);
+  
+  atom->hydrogens->n_items = 0;
+ 
+  if (molecule->rely_on_bonds) {
+
+    set_atom_hydrogens_from_bonds(atom);
+
+  } else {
+
+    covalent_map = molecule->covalent_map;
+
+    if (covalent_map) {
+
+      set_atom_hydrogens_from_map(atom,covalent_map);
+
+    } else {
+
+      Do = atom->element->cov_radius + (get_element("H",NULL))->cov_radius;
+
+      for (i=0,hydrogen=molecule->atom;i<molecule->natoms;i++,hydrogen++) {
+
+	if (hydrogen->element->id == HYDROGEN) {
+
+	  D = distance(atom->position,hydrogen->position);
+
+	  if (D < Do + COVALENT_TOLERANCE) {
+
+	    add_atom_hydrogen(atom,hydrogen);
+	  }
+	}
+      }
+    }
+  }
+}
+
+
+
+static void set_atom_hydrogens_from_bonds(ATOM *atom) {
+
+  int i;
+  MOLECULE *molecule;
+  ATOM *atom1,*atom2;
+  BOND *bond;
+
+  molecule = atom->molecule;
+
+  for (i=0,bond=molecule->bond;i<molecule->nbonds;i++,bond++) {
+
+    atom1 = bond->atom1;
+    atom2 = bond->atom2;
+
+    if ((atom1 == atom) && (atom2->element->id == HYDROGEN)) {
+
+      add_atom_hydrogen(atom,atom2);
+
+    } else if ((atom2 == atom) && (atom1->element->id == HYDROGEN)) {
+
+      add_atom_hydrogen(atom,atom1);
+    }
+  }
+}
+
+
+
+static void set_atom_hydrogens_from_map(ATOM *atom,MAP *map) {
+
+  int i,flag,iv[3],irange[3][2],ix,iy,iz;
+  double Do,D;
+  GRID *grid;
+  ATOM **atomp,*hydrogen;
+  ATOMLIST ***matrix,*list;
+
+  grid = map->grid;
+  matrix = (ATOMLIST***) map->matrix;
+
+  flag = pos2grid(atom->position,iv,grid);
+
+  if (flag != 0) {
 
     return;
   }
 
-  if (system->ligand) {
+  for (i=0;i<3;i++) {
 
-    check_molecule_dict(system->ligand);
+    irange[i][0] = (iv[i] == 0) ? 0 : iv[i] - 1;
+    irange[i][1] = (iv[i]+1 == grid->npoints[i]) ? iv[i] : iv[i] + 1;
   }
 
-  for (i=0,moleculep=list->molecules;i<list->n_molecules;i++,moleculep++) {
+  Do = atom->element->cov_radius + (get_element("H",NULL))->cov_radius;
 
-    molecule = *moleculep;
+  for (ix=irange[0][0];ix<=irange[0][1];ix++) {
 
-    for (j=0,atom=molecule->atom;j<molecule->natoms;j++,atom++) {
+    for (iy=irange[1][0];iy<=irange[1][1];iy++) {
 
-      set_atom_connections(atom,0);
+      for (iz=irange[2][0];iz<=irange[2][1];iz++) {
+
+	list = &(matrix[ix][iy][iz]);
+
+	for (i=0,atomp=list->atom;i<list->natoms;i++,atomp++) {
+
+	  hydrogen = *atomp;
+
+	  if (hydrogen->element->id == HYDROGEN) {
+
+	    D = distance(atom->position,hydrogen->position);
+	    
+	    if (D < Do + COVALENT_TOLERANCE) {
+	      
+	      add_atom_hydrogen(atom,hydrogen);
+	    }
+	  }
+	}
+      }
     }
+  }
+}
+
+
+
+static void add_atom_hydrogen(ATOM *atom,ATOM *hydrogen) {
+
+  int i;
+  MOLECULE *molecule;
+  ATOM **hp;
+
+  molecule = atom->molecule;
+
+  if (atom->hydrogens == NULL) {
+
+    error_fn("%s: atom hydrogens need to be initialised for atom %d in molecule %s",__func__,atom->id,molecule->name);
+  }
+
+  for (i=0,hp=(ATOM**) atom->hydrogens->items;i<atom->hydrogens->n_items;i++,hp++) {
+
+    if (*hp == hydrogen) {
+
+      return;
+    }
+  }
+
+  if (molecule->hydrogens == NULL) {
+
+    error_fn("%s: molecule hydrogens need to be initialised for atom %d in molecule %s",__func__,atom->id,molecule->name);
+  }
+
+  hp = (ATOM**) add_list_item(molecule->hydrogens);
+
+  *hp = hydrogen;
+
+  atom->hydrogens->n_items++;
+}
+
+
+
+static void set_molecule_substructures(MOLECULE *molecule) {
+
+  int i,j;
+  ATOM **atom;
+  LIST *substructure;
+
+  if ((molecule->subatoms) || (molecule->substructures)) {
+
+    error_fn("%s: cannot set molecule substructures twice",__func__);
+  }
+
+  molecule->subatoms = new_list("molecule substructure atoms",sizeof(ATOM*),molecule->nonh_atoms->n_items);
+  molecule->substructures = new_list("molecule substructures",sizeof(LIST),molecule->nonh_atoms->n_items);
+
+  for (i=0,atom=(ATOM**)molecule->nonh_atoms->items;i<molecule->nonh_atoms->n_items;i++,atom++) {
+
+    set_atom_substructure(*atom);
+  }
+
+  // some tedious book-keeping:
+
+  condense_list(molecule->substructures);
+
+  for (i=0,substructure=(LIST*)molecule->substructures->items;i<molecule->substructures->n_items;i++,substructure++) {
+
+    for (j=0,atom=(ATOM**)substructure->items;j<substructure->n_items;j++,atom++) {
+
+      (*atom)->substructure = substructure;
+    }
+  }
+}
+
+
+
+static void set_atom_substructure(ATOM *atom1) {
+
+  int i,j;
+  MOLECULE *molecule;
+  ATOM **atom2p,*atom2,**subatom;
+  LIST *substructure,*subatoms;
+
+  if (atom1->substructure) {
+
+    return;
+  }
+
+  molecule = atom1->molecule;
+  subatoms = molecule->subatoms;
+
+  substructure = add_list_item(molecule->substructures);
+
+  substructure->n_items = 0;
+
+  substructure->items = get_list_item(subatoms,molecule->subatoms->n_items);
+
+  for (i=0,atom2p=(ATOM**)molecule->nonh_atoms->items;i<molecule->nonh_atoms->n_items;i++,atom2p++) {
+
+    atom2 = *atom2p;
+
+    if (atom2->substructure == NULL) {
+
+      if (same_residue_atoms(atom1,atom2)) {
+
+	subatom = (ATOM**) add_list_item(subatoms);
+
+	*subatom = atom2;
+
+	atom2->substructure = substructure;
+
+	substructure->n_items++;
+      }
+    }
+  } 
+}
+
+
+
+LIST* atoms2substructures(LIST *atoms) {
+
+  int i,j;
+  ATOM **atom;
+  LIST **substructure,*substructures,**item;
+
+  substructures = new_list("substructures",sizeof(LIST*),0);
+
+  for (i=0,atom=(ATOM**)atoms->items;i<atoms->n_items;i++,atom++) {
+
+    substructure = &((*atom)->substructure);
+
+    if (!item_in_list(substructures,(void*) substructure)) {
+
+      item = (LIST**) add_list_item(substructures);
+
+      *item = *substructure;
+    }
+  }
+
+  return(substructures);
+}
+
+
+
+// TODO: these are currently calculated from the atom connections
+// but in future it would be better to remove the atom connections
+// and use the edges instead; then we will have to calculate the edges
+// from scratch
+
+void set_atom_edges(ATOM *atom) {
+
+  int i;
+  ATOM **batomp,*batom;
+  BOND *bond;
+  ATOM_EDGE *edge;
+  ATOMLIST *conns;
+  MOLECULE *molecule;
+
+  conns = atom->connections;
+
+  if (conns == NULL) {
+
+    return;
+  }
+
+  if (conns->natoms > MAX_ATOM_EDGES) {
+
+    atom->n_edges = MAX_ATOM_EDGES;
+
+    warning_fn("%s: exceeded maxiumum number of edges (%d) for atom %d",__func__,MAX_ATOM_EDGES,atom->id);
+
+  } else {
+
+    atom->n_edges = conns->natoms;
+  }
+
+  molecule = atom->molecule;
+
+  for (i=0,batomp=conns->atom,edge=atom->edges;i<atom->n_edges;i++,batomp++,edge++) {
+
+    batom = *batomp;
+
+    edge->atom = batom;
+    edge->bond = get_bond(molecule,atom,batom);
   }
 }
 
@@ -1709,12 +2449,26 @@ void reset_molecule_connections(MOLECULE *molecule) {
 
 	free_atomlist(atom->connections);
 
+	free_atomlist(atom->h_connections);
+
 	atom->connections = NULL;
 
+	atom->h_connections = NULL;
+
 	atom->n_hydrogens = 0;
+
+	atom->n_edges = 0;
+
+	atom->hydrogens = NULL;
       }
     }
   }
+
+  free_list(molecule->hydrogens);
+  free_list(molecule->hydrogen_lists);
+
+  molecule->hydrogens = NULL;
+  molecule->hydrogen_lists = NULL;
 }
 
 
@@ -1792,12 +2546,13 @@ static void set_atom_connections(ATOM *atom1,int silent) {
   if (atom1->connections == NULL) {
 
     atom1->connections = (ATOMLIST*) alloc_atomlist();
-
     init_atomlist(atom1->connections);
+    atom1->h_connections = (ATOMLIST*) alloc_atomlist();
+    init_atomlist(atom1->h_connections);
   }
 
   if (atom1->element->id == HYDROGEN) {
-
+    molecule2connections(atom1, atom1->molecule, NULL, NULL, 0, 0);
     return;
   }
 
@@ -1866,8 +2621,8 @@ static void set_atom_connections(ATOM *atom1,int silent) {
 	bond = molecule1->bond + i;
 
 	batom = (bond->atom1 == atom1) ? bond->atom2 : (bond->atom2 == atom1) ? bond->atom1 : NULL;
-
-	if ((batom != NULL) && (!atom_in_list(atom1->connections,batom))) {
+	// don't delete bonds to hydrogens as the connections are stored in hydrogen atom
+	if ((batom != NULL) && (batom->element->id != HYDROGEN) && (!atom_in_list(atom1->connections,batom))) {
 
 	  delete_bond(molecule1,i);
 
@@ -1954,10 +2709,11 @@ static void bonds2connections(ATOM *atom,MOLECULE *molecule) {
 
   int i;
   ATOM *atom1,*atom2;
-  ATOMLIST *connections;
+  ATOMLIST *connections, *h_connections;
   BOND *bond;
 
   connections = atom->connections;
+  h_connections = atom->h_connections;
 
   for (i=0,bond=molecule->bond;i<molecule->nbonds;i++,bond++) {
 
@@ -1969,6 +2725,9 @@ static void bonds2connections(ATOM *atom,MOLECULE *molecule) {
       if (atom2->element->id == HYDROGEN) {
 
 	atom->n_hydrogens++;
+	if (!atom_in_list(h_connections, atom2)){
+	  add_atom_to_list(h_connections, atom2, bond->type);
+	}
 
       } else if (!atom_in_list(connections,atom2)) {
 
@@ -1980,6 +2739,9 @@ static void bonds2connections(ATOM *atom,MOLECULE *molecule) {
       if (atom1->element->id == HYDROGEN) {
 
 	atom->n_hydrogens++;
+	if (!atom_in_list(h_connections, atom1)){
+          add_atom_to_list(h_connections, atom1, bond->type);
+        }
 
       } else if (!atom_in_list(connections,atom1)) {
 
@@ -2062,6 +2824,11 @@ void pair2connections(ATOM *atom1,ATOM *atom2,MOLECULE *dict,ATOM *datom1,int di
     if (atom2->element->id == HYDROGEN) {
 
       atom1->n_hydrogens++;
+
+      if (!atom_in_list(atom1->h_connections, atom2)){
+
+        add_atom_to_list(atom1->h_connections, atom2, 1);
+      }
 
     } else {
 
@@ -2199,6 +2966,44 @@ void get_connected_atoms(ATOMLIST *list,ATOM *atom,ATOM *banned_atom,int metal_b
 
 
 
+int connected_atoms(ATOM *atom1,ATOM *atom2,ATOM *last_atom,int max_bonds) {
+
+  int i;
+  ATOM **batomp,*batom;
+  ATOMLIST *list;
+
+  if (max_bonds == 0) {
+
+    return(0);
+  }
+
+  list = atom1->connections;
+
+  if (list == NULL) {
+
+    return(0);
+  }
+
+  for (i=0,batomp=list->atom;i<list->natoms;i++,batomp++) {
+
+    batom = *batomp;
+
+    if (batom == atom2) {
+
+      return(1);
+    }
+
+    if ((batom != last_atom) && (connected_atoms(batom,atom2,atom1,max_bonds-1))) {
+
+      return(1);
+    }
+  }
+
+  return(0);
+}
+
+
+
 int same_molecule_atoms(ATOM *atom1,ATOM *atom2) {
 
   if (atom1->molecule != atom2->molecule) {
@@ -2217,6 +3022,64 @@ int same_molecule_atoms(ATOM *atom1,ATOM *atom2) {
   }
 
   return(1);
+}
+
+
+RESIDUE* atomlist2residues(ATOMLIST *list,int *n_residues) {
+
+  int i,j,n_res,new_residue;
+  ATOM **atomp,*atom;
+  RESIDUE *residues,*residue;
+
+  *n_residues = 0;
+
+  if (list == NULL) {
+
+    return(NULL);
+  }
+
+  residues = (RESIDUE*) calloc(list->natoms,sizeof(RESIDUE));
+
+  if (residues == NULL) {
+
+    error_fn("%s: out of memory allocating residues",__func__);
+  }
+
+  n_res = 0;
+
+  for (i=0,atomp=list->atom;i<list->natoms;i++,atomp++) {
+
+    atom = *atomp;
+
+    new_residue = 1;
+
+    for (j=0,residue=residues;j<n_res;j++,residue++) {
+
+      if ((!strcmp(atom->subname,residue->name)) && (atom->subid == residue->id) &&
+      	  (atom->chain == residue->chain) && (atom->icode == residue->icode)) {
+
+      	new_residue = 0;
+      }
+    }
+
+    if (new_residue) {
+
+      residue = residues + n_res;
+
+      residue->id = atom->subid;
+      strcpy(residue->name,atom->subname);
+      residue->chain = atom->chain;
+      residue->icode = atom->icode;
+
+      n_res++;
+    }
+  }
+
+  residues = (RESIDUE*) realloc(residues,n_res*sizeof(RESIDUE));
+
+  *n_residues = n_res;
+
+  return(residues);
 }
 
 
@@ -2251,10 +3114,10 @@ int same_residue_atoms(ATOM *atom1,ATOM *atom2) {
   if ((!strcmp(atom1->subname,atom2->subname)) && (atom1->subid == atom2->subid) &&
       (atom1->chain == atom2->chain) && (atom1->icode == atom2->icode) && (atom1->altloc == atom2->altloc)) {
 
-    return(1);
+    return(TRUE);
   }
 
-  return(0);
+  return(FALSE);
 }
 
 
@@ -2317,6 +3180,18 @@ void copy_atomlist(ATOMLIST *list1,ATOMLIST *list2) {
 
     add_atom_to_list(list2,*atomp,*flag);
   }
+}
+
+
+
+void copy_atom_coords(ATOM *atom1,ATOM *atom2) {
+
+  copy_vector(atom1->position,atom2->position);
+  copy_vector(atom1->u,atom2->u);
+  copy_vector(atom1->v,atom2->v);
+  copy_vector(atom1->w,atom2->w);
+
+  atom2->status |= ATOM_MOVED;
 }
 
 
@@ -2388,6 +3263,48 @@ double** molecule2coordinates(MOLECULE *molecule) {
   return(v);
 }
 
+ATOM_COORDS* molecule2coords(MOLECULE *molecule) {
+  int i;
+  ATOM *atom;
+  ATOM_COORDS *coords,*coord;
+
+  if (molecule->natoms == 0) {
+    return(NULL);
+  }
+
+  coords = (ATOM_COORDS*) calloc(molecule->natoms,sizeof(ATOM_COORDS));
+
+  if (coords == NULL) {
+    error_fn("get_list_coords: out of memory allocating coords");
+  }
+
+  for (i=0, atom=molecule->atom, coord=coords; i<molecule->natoms; i++,atom++,coord++) {
+    copy_vector(atom->position,coord->position);
+    copy_vector(atom->u,coord->u);
+    copy_vector(atom->v,coord->v);
+    copy_vector(atom->w,coord->w);
+  }
+
+  return(coords);
+}
+
+
+
+void coords2molecule(ATOM_COORDS *coords, MOLECULE *molecule) {
+  int i, natoms_coords;
+  ATOM *atom;
+  ATOM_COORDS *coord;
+
+
+  for (i=0, atom=molecule->atom, coord=coords; i<molecule->natoms; i++,atom++,coord++) {
+    copy_vector(coord->position, atom->position);
+    copy_vector(coord->u, atom->u);
+    copy_vector(coord->v, atom->v);
+    copy_vector(coord->w, atom->w);
+  }
+}
+
+
 
 
 void coordinates2molecule(MOLECULE *molecule,double **v) {
@@ -2403,7 +3320,7 @@ void coordinates2molecule(MOLECULE *molecule,double **v) {
 
 
 
-static int linear_atom(ATOM *atom) {
+int linear_atom(ATOM *atom) {
 
   double v1[4],v2[4];
   ATOMLIST *conns;
@@ -2412,69 +3329,73 @@ static int linear_atom(ATOM *atom) {
 
   if (conns == NULL) {
 
-    warning_fn("linear_atom: atom connections undefined");
-
-    return(0);
+    return(UNDEFINED);
   }
 
-  if (conns->natoms != 2)
-    return(0);
+  if (conns->natoms != 2) {
+
+    return(UNDEFINED);
+  }
   
   calc_vector(atom->position,(*(conns->atom))->position,v1);
   calc_vector(atom->position,(*(conns->atom+1))->position,v2);
 
   if (vector_angle(v1,v2) > 160.0) {
 
-    return(1);
+    return(TRUE);
   }
 
-  return(0);
+  return(FALSE);
 }
 
 
 
 int planar_atom(ATOM *atom) {
 
-  double v1[4],v2[4],v3[4],angle_sum;
-  ATOMLIST *conns;
+  int i,n_edges;
+  double v[3][4],angle_sum;
+  ATOM **hydrogen;
+  ATOM_EDGE *edge;
 
-  if (atom->planar != -1) {
+  if (atom->planar != UNDEFINED) {
 
     return(atom->planar);
   }
 
-  conns = atom->connections;
+  n_edges = (atom->molecule->use_hydrogens) ? atom->n_edges + atom->hydrogens->n_items : atom->n_edges;
 
-  if (conns == NULL) {
+  if (n_edges != 3) {
 
-    warning_fn("planar_atom: atom connections undefined");
-
-    return(0);
+    return(UNDEFINED);
   }
 
-  if (conns->natoms != 3) {
+  n_edges = 0;
 
-    atom->planar = 0;
+  for (i=0,edge=(ATOM_EDGE*) atom->edges;i<atom->n_edges;i++,edge++,n_edges++) {
 
-    return(0);
+    calc_vector(atom->position,edge->atom->position,v[n_edges]);
   }
 
-  calc_vector(atom->position,(*(conns->atom+0))->position,v1);
-  calc_vector(atom->position,(*(conns->atom+1))->position,v2);
-  calc_vector(atom->position,(*(conns->atom+2))->position,v3);
+  if (atom->molecule->use_hydrogens) {
 
-  angle_sum = vector_angle(v1,v2) + vector_angle(v1,v3) + vector_angle(v2,v3);
-
-  if (angle_sum > 350.0) {
-
-    atom->planar = 1;
-
-    return(1);
+    for (i=0,hydrogen=(ATOM**) atom->hydrogens->items;i<atom->hydrogens->n_items;i++,hydrogen++,n_edges++) {
+    
+      calc_vector(atom->position,(*hydrogen)->position,v[n_edges]);
+    }
   }
 
-  atom->planar = 0;
+  angle_sum = vector_angle(v[0],v[1]) + vector_angle(v[0],v[2]) + vector_angle(v[1],v[2]);
 
-  return(0);
+  if (angle_sum > 355.0) {
+
+    atom->planar = TRUE;
+
+    return(TRUE);
+  }
+  
+  atom->planar = FALSE;
+  
+  return(FALSE);
 }
 
 
@@ -2607,7 +3528,564 @@ void atomlist2centroid(ATOMLIST *list,double *c) {
 
   for (i=0;i<3;i++) {
 
-    c[i] /= list->natoms;
+    c[i] /= (double) list->natoms;
   }
 }
 
+int heavy_atom_count(MOLECULE *molecule) {
+  int i;
+  int n = 0;
+  ATOM *atom;
+  for (i=0,atom=molecule->atom;i<molecule->natoms;i++,atom++) {
+    if ((atom->element->id != HYDROGEN) && (!(atom->flags & SKIP_ATOM))) {
+      n++;
+    }
+  }
+  return(n);
+}
+
+
+ATOM_TYPE_LIST* molecule2atomtypelist(MOLECULE *molecule) {
+  int i, j, present;
+  ATOM *atom;
+
+  ATOM_TYPE_LIST *list = malloc(sizeof(ATOM_TYPE_LIST));
+  if (list == NULL) {
+    error_fn("%s: error allocating ATOM_TYP_LIST\n", __func__);
+  }
+  list->n_alloc_types = 0;
+  list->n_types = 0;
+
+  for (i=0; i<molecule->natoms; i++) {
+    atom = molecule->atom+i;
+    present = 0;
+
+    if (atom->element->id == HYDROGEN) {
+      continue;
+    }
+
+    for (j=0; j<list->n_types; j++) {
+      if (atom->type == list->types[j]) {
+	present = 1;
+	break;
+      }
+    }
+
+    if (! present) {
+      add_atom_type_to_list(atom->type, list);
+    }
+  }
+
+  return(list);
+}
+
+
+static void add_atom_type_to_list(ATOM_TYPE *type, ATOM_TYPE_LIST *list) {
+  if (list->n_alloc_types == 0) {
+    list->n_alloc_types = 10;
+    list->types = calloc(list->n_alloc_types, sizeof(ATOM_TYPE*));
+  } else if (list->n_types == list->n_alloc_types) {
+    list->n_alloc_types += 10;
+    list->types = realloc(list->types,(list->n_alloc_types)*sizeof(ATOM_TYPE*));
+  }
+
+  if (list->types == NULL) {
+    error_fn("%s: out of memory allocating atom_type_list");
+  }
+
+  list->types[list->n_types] = type;
+  list->n_types++;
+}
+
+
+void set_molecule_min_coords(MOLECULE *molecule, double *min_coords) {
+  double orig_min_coords[3] = {1e10, 1e10, 1e10};
+  int i, j;
+  ATOM *atom;
+
+  for (i=0; i<molecule->natoms; i++) {
+    atom = molecule->atom+i;
+    for (j=0; j<3; j++) {
+      if (atom->position[j] < orig_min_coords[j]) {
+	orig_min_coords[j] = atom->position[j];
+      }
+    }
+  }
+
+  for (i=0; i<molecule->natoms; i++) {
+    atom = molecule->atom+i;
+    for (j=0; j<3; j++) {
+      atom->position[j] = atom->position[j] - orig_min_coords[j] + min_coords[j];
+    }
+  }
+}
+
+double molecule_max_size(MOLECULE *molecule) {
+  int i, j;
+  ATOM *atom;
+  double min_coords[3], max_coords[3];
+  int extremes_set = 0;
+  double max_size;
+
+  for (i=0, atom=molecule->atom; i<molecule->natoms; i++,atom++) {
+    if ((atom->element->id == HYDROGEN) || (atom->flags & SKIP_ATOM)) {
+      continue;
+    }
+
+    for (j=0; j<3; j++) {
+      if (! extremes_set) {
+	min_coords[j] = max_coords[j] = atom->position[j];
+      } else {
+	if (atom->position[j] < min_coords[j]) {
+	  min_coords[j] = atom->position[j];
+	}
+	if (atom->position[j] > max_coords[j]) {
+	  max_coords[j] = atom->position[j];
+	}
+      }
+    }
+    extremes_set = 1;
+  }
+
+  if (! extremes_set) {
+    error_fn("%s: can not get maximum size of the molecule\n", __func__);
+  }
+  max_size = max_coords[0] - min_coords[0];
+  for (i=1; i<3; i++) {
+    if ((max_coords[i] - min_coords[i]) > max_size) {
+      max_size = max_coords[i] - min_coords[i];
+    }
+  }
+  return max_size;
+}
+
+int molecule_accessible(MAP *field, MOLECULE *molecule) {
+  int i;
+  int gp[3];
+  int index;
+  ATOM *atom;
+
+  for (i=0, atom=molecule->atom; i<molecule->natoms; i++,atom++) {
+    if ((atom->element->id != HYDROGEN) && (!(atom->flags & SKIP_ATOM))) {
+      if (pos2grid_round(atom->position, gp, field->grid)) {
+        error_fn("%s: atom lies outside the grid\n", __func__);
+      }
+      index = field->grid->npoints[1] * field->grid->npoints[2] * gp[0] + \
+              field->grid->npoints[2] * gp[1] + \
+              gp[2];
+      if (is_mask_bit_set(field->mask, index)) {
+        return(0);
+      }
+    }
+  }
+  return(1);
+}
+
+
+void shake_molecule(MOLECULE *molecule) {
+  int i, j;
+  ATOM *atom;
+  double shake;
+
+  for (i=0, atom=molecule->atom; i<molecule->natoms; i++, atom++) {
+
+    shake_atom(atom,MIN_COORD_SHAKE, MAX_COORD_SHAKE);
+  }
+}
+
+
+
+void shake_atom(ATOM *atom,double min_shift,double max_shift) {
+
+  int i;
+  double shift;
+
+  for (i=0;i<3;i++) {
+
+    shift = uniform_rand(min_shift,max_shift);
+
+    if (uniform_rand_int(0,1)) {
+
+      shift *= -1.0;
+    }
+
+    atom->position[i] += shift;
+  }
+}
+
+
+
+BOOLEAN **create_adjacency_matrix (MOLECULE *molecule)
+{
+  ATOMLIST *list;
+  BOOLEAN **matrix;
+  int i, j;
+  ATOM *atom1, *atom2;
+
+  list = molecule->selection;
+  if (list == NULL) {
+    error_fn("%s: atom selection list is not defined", __func__);
+  }
+  if (list->natoms == 0) {
+    error_fn("%s: no atom is selected", __func__);
+  }
+
+  matrix = alloc_2d_bool_matrix(list->natoms, list->natoms);
+
+  for (i=0; i<list->natoms; i++) {
+    atom1 = list->atom[i];
+    for (j=i; j<list->natoms; j++) {
+      atom2 = list->atom[j];
+      if (atom_in_list(atom1->connections, atom2)) {
+        matrix [i][j] = matrix [j][i] = 1;
+      } else {
+        matrix [i][j] = matrix [j][i] = 0;
+      }
+    }
+  }
+
+  return matrix;
+}
+
+
+void get_selected_atom_indices(MOLECULE *molecule, int *ids) {
+  int i;
+  for (i=0; i<molecule->selection->natoms; i++) {
+    ids[i] = molecule->selection->atom[i] - molecule->atom;
+  }
+}
+
+void coords_bounds(ATOM_COORDS **coords, int n_coords, MOLECULE *molecule, double bounds[3][2]) {
+  int i, j, k;
+  int selected_indices[molecule->natoms];
+
+  if (! molecule->selection) {
+    error_fn("%s: no atom selected in the molecule", __func__);
+  }
+
+  get_selected_atom_indices(molecule, selected_indices);
+
+  for (i=0; i<3; i++) {
+    bounds[i][0] =  1.0E30;
+    bounds[i][1] = -1.0E30;
+  }
+
+  for (i=0; i<n_coords; i++) {
+    for (j=0; j<molecule->selection->natoms; j++) {
+      for (k=0; k<3; k++) {
+        if ((coords[i] + selected_indices[j])->position[k] < bounds[k][0]) {
+          bounds[k][0] = (coords[i] + selected_indices[j])->position[k];
+        }
+        if ((coords[i] + selected_indices[j])->position[k] > bounds[k][1]) {
+          bounds[k][1] = (coords[i] + selected_indices[j])->position[k];
+        }
+      }
+    }
+  }
+}
+
+
+GRID* coords2grid(ATOM_COORDS **coords, int n_coords, MOLECULE *molecule, double spacing, double padding, double *center) {
+
+  int i, j;
+  double bounds[3][2];
+  GRID *grid;
+
+
+  coords_bounds(coords, n_coords, molecule, bounds);
+
+  grid = (GRID*) malloc(sizeof(GRID));
+
+
+  if (grid == NULL) {
+
+    error_fn("%s: out of memory allocating grid", __func__);
+  }
+  grid->padding = padding;
+  grid->spacing = spacing;
+
+  int n_points;
+  int limit1, limit2;
+
+  for (i=0; i<3; i++) {
+    if (center[i] < bounds[i][0] || center[i] > bounds[i][1]) {
+      error_fn("%s: center not within the bounds", __func__);
+    }
+    // symmtric grid around the center
+    if ((center[i] - bounds[i][0]) >= (bounds[i][1] - center[i])) {
+      n_points = (int) ceil((center[i] - bounds[i][0] + grid->padding)/grid->spacing);
+    } else {
+      n_points = (int) ceil((-center[i] + bounds[i][1] + grid->padding)/grid->spacing);
+    }
+    grid->npoints[i] = n_points * 2 + 1;
+    grid->limit[i][0] = (int) round(center[i] - (double) n_points);
+    grid->limit[i][1] = grid->limit[i][0] + grid->npoints[i] -1;
+
+    grid->flimit[i][0] = ((double) grid->limit[i][0])*(grid->spacing);
+    grid->flimit[i][1] = ((double) grid->limit[i][1])*(grid->spacing);
+  }
+
+  return(grid);
+}
+
+ATOMLIST* get_hbond_atomlist(MOLECULE *molecule){
+  int i;
+
+  ATOMLIST *hbond_atomlist;
+  hbond_atomlist = alloc_atomlist();
+  init_atomlist(hbond_atomlist);
+
+  if (! molecule->selection) {
+    error_fn("%s: selection not defined", __func__);
+  }
+
+  if (! molecule->selection->natoms) {
+    error_fn("%s: no atom selected");
+  }
+
+
+  for (i=0; i<molecule->selection->natoms; i++) {
+    if (molecule->selection->atom[i]->type->flags & HBOND_DA_ATOM_TYPE) {
+      add_atom_to_list(hbond_atomlist, molecule->selection->atom[i], molecule->selection->atom[i]->flags);
+    }
+  }
+  return hbond_atomlist;
+}
+
+ATOMLIST* molecule2hbonding_atoms(MOLECULE *molecule) {
+  ATOMLIST *list = alloc_atomlist();
+  init_atomlist(list);
+
+  int i;
+  ATOM *atom;
+  for (i=0, atom=molecule->atom; i<molecule->natoms; i++, atom++) {
+    if ((atom->flags & SKIP_ATOM) || (atom->element->id == HYDROGEN)) {
+      continue;
+    }
+    if (((atom->type->flags & HBOND_DONOR_ATOM_TYPE) == HBOND_DONOR_ATOM_TYPE) || ((atom->type->flags & HBOND_ACCEPTOR_ATOM_TYPE) == HBOND_ACCEPTOR_ATOM_TYPE)) {
+      add_atom_to_list(list, atom, atom->flags);
+    }
+  }
+  return (list);
+}
+
+int has_hbonding_atom(MOLECULE *molecule) {
+  int i;
+  ATOM *atom;
+  for (i=0, atom=molecule->atom; i<molecule->natoms; i++, atom++) {
+    if ((atom->flags & SKIP_ATOM) || (atom->element->id == HYDROGEN)) {
+      continue;
+    }
+    if (((atom->type->flags & HBOND_DONOR_ATOM_TYPE) == HBOND_DONOR_ATOM_TYPE) || ((atom->type->flags & HBOND_ACCEPTOR_ATOM_TYPE) == HBOND_ACCEPTOR_ATOM_TYPE)) {
+      return(1);
+    }
+  }
+  return (0);
+}
+
+MOLECULE* create_atom_type_molecules(ATOM_TYPE *type, int n_molecule, char *molecule_name, SETTINGS *settings) {
+  MOLECULE *molecules = calloc(n_molecule, sizeof(MOLECULE));
+
+  if (molecules == NULL) {
+    error_fn("realloc_probe_atoms: out of memory allocating probe molecule");
+  }
+
+  int i;
+  MOLECULE *molecule;
+  for (i=0, molecule = molecules; i<n_molecule; i++, molecule++) {
+    init_molecule(molecule,1);
+    ATOM *atom = molecule->atom + molecule->natoms;
+    init_atom(atom);
+    null_vector(atom->position);
+    atom->type = type;
+    atom->node = type->united_atom->atom_node;
+    atom->element = (atom->type->id == -1) ? atom->type->element : atom->type->united_atom->atom_node->element;
+    atom->hbond_geometry = type->hbond_geometry;
+    atom->molecule = molecule;
+    atom->geometry = type->geometry;
+    //atom->flags |= SINGLE_ATOM_PROBE;
+
+    molecule->natoms++;
+    strcpy(molecule->name, molecule_name);
+    molecule->selection = molecule2atoms(molecule);
+    molecule->flags |= LIGAND_MOLECULE;
+    molecule->molsystem = molecule2system(molecule, settings);
+    set_molecule_vdw_radii(molecule,settings->water_vdw_radius);
+  }
+  return(molecules);
+}
+
+MOLECULE_PROBE* get_molecule_probe(char *probe_name, SETTINGS *settings, char *skip_atoms_csv) {
+
+  INT_LIST *skip_atoms = NULL;
+  if ((skip_atoms_csv) && (strcmp(skip_atoms_csv, "undefined"))) {
+    skip_atoms = parse_int_csv(skip_atoms_csv, ",");
+    if (skip_atoms->n_items == 0) {
+      error_fn("%s: No atom ids could be parsed from \"%s\"", __func__, skip_atoms_csv);
+    }
+  }
+  if (is_readable_file(probe_name)){
+    MOLECULE_PROBE *probe = create_mol_probe_from_file(probe_name, settings, skip_atoms);
+    return probe;
+  }
+
+  // look for the probe_name in the probes directory
+  char *pli_dir = get_pli_dir();
+  char file_name[MAX_LINE_LEN];
+  sprintf(file_name, "%s/params/probes/%s.sdf", pli_dir, probe_name);
+  if (is_readable_file(file_name)){
+    MOLECULE_PROBE *probe = create_mol_probe_from_file(file_name, settings, skip_atoms);
+    return probe;
+  }
+
+  error_fn("%s: Error initializing molecule probe %s", __func__, probe_name);
+}
+
+
+static MOLECULE_PROBE* create_mol_probe_from_file(char *filename, SETTINGS *settings, INT_LIST *skip_aids) {
+
+  int i;
+  ATOM *atom;
+  MOLECULE_PROBE *probe;
+  MOLECULE *molecule;
+
+  probe = alloc_molecule_probe();
+
+  molecule = read_molecule(filename);
+  molecule->flags |= LIGAND_MOLECULE;
+
+  // to resolve the tautomers
+  molecule->use_hydrogens = 1;
+
+  molecule->selection = molecule2atoms(molecule);
+  prep_molecule(molecule, settings);
+
+  //
+  shake_molecule(molecule);
+
+  if (skip_aids) {
+    skip_atom_ids(molecule, skip_aids);
+  }
+
+  // remove flagged atoms from the selection
+  for (i=0, atom=molecule->atom; i<molecule->natoms; i++, atom++) {
+    if ((atom->flags & SKIP_ATOM) && (atom_in_list(molecule->selection, atom))) {
+      remove_atom_from_list(molecule->selection, atom);
+    }
+  }
+
+  if (heavy_atom_count(molecule) == 1) {
+    error_fn("%s: molecular probe should have at least two atoms, only one atom found in \"%s\". Consider running mode \"field\"", __func__, filename);
+  }
+
+  molecule->molsystem = molecule2system(molecule,settings);
+  probe->molecule = molecule;
+  probe->selected_ids = calloc(molecule->selection->natoms, sizeof(int));
+  get_selected_atom_indices(molecule, probe->selected_ids);
+  return(probe);
+}
+
+MOLECULE_PROBE* alloc_molecule_probe(void) {
+  MOLECULE_PROBE *probe;
+
+  probe = (MOLECULE_PROBE*) malloc(sizeof(MOLECULE_PROBE));
+  if (probe == NULL) {
+    error_fn("%s: out of memory allocating molecule probe", __func__);
+  }
+
+  probe->atom_maps = NULL;
+  probe->molecule = NULL;
+  probe->n_orientations = 0;
+  probe->orientations = NULL;
+  probe->score = 0.0;
+  probe->orientation_id = -1;
+  probe->auto_mappings = NULL;
+  probe->n_alloc_mappings;
+  probe->n_mappings = 0;
+  return(probe);
+}
+
+
+double sqr_distance_offset(double *v1,double *v2, double *offset1, double *offset2) {
+
+  return(sqr((v2[0]+offset2[0])-(v1[0]+offset1[0])) + sqr((v2[1]+offset2[1])-(v1[1]+offset1[1])) + sqr((v2[2]+offset2[2])-(v1[2]+offset1[2])));
+}
+
+double rms_coords_atleat(ATOM_COORDS *coords1, ATOM_COORDS *coords2, int *selected1, int *selected2, int n_selected, BOOLEAN ***isomorphs, int n_isomprphs, double upper_bound) {
+
+  double min_rms, temp, upper_bound_sqr;
+  double rms;
+
+
+  min_rms = 1E10;
+  int i,j,k;
+  int coords_ind1, coords_ind2;
+
+
+  upper_bound_sqr = upper_bound * upper_bound * n_selected;
+
+  for (i=0; i<n_isomprphs; i++) {
+    rms = 0.0;
+    for (j=0; j<n_selected; j++) {
+      coords_ind1 = (selected1 == NULL) ? j: selected1[j];
+      for (k=0; k<n_selected; k++) {
+        if (isomorphs[i][j][k]) {
+          coords_ind2 = (selected2 == NULL) ? k: selected2[k];
+          rms+= sqr_distance((coords1+coords_ind1)->position, (coords2+coords_ind2)->position);
+          if (rms > upper_bound_sqr) {
+            j = n_selected;
+            break;
+          }
+        }
+      }
+    }
+    rms = sqrt(rms/(double)n_selected);
+    // early termination if close to zero rms is alreay found
+    if (rms < 1E-10) {
+      return(rms);
+    }
+    if (rms < min_rms) {
+      min_rms = rms;
+    }
+  }
+  return (min_rms);
+}
+
+double rms_coords(ATOM_COORDS *coords1, ATOM_COORDS *coords2, int *selected1, int *selected2, int n_selected, BOOLEAN ***isomorphs, int n_isomprphs, double *offset1, double *offset2) {
+
+  double min_rms;
+  double rms;
+
+
+  min_rms = 1E100;
+  int i,j,k;
+  int coords_ind1, coords_ind2;
+
+
+
+  for (i=0; i<n_isomprphs; i++) {
+    rms = 0.0;
+    for (j=0; j<n_selected; j++) {
+      coords_ind1 = (selected1 == NULL) ? j: selected1[j];
+      for (k=0; k<n_selected; k++) {
+        if (isomorphs[i][j][k]) {
+          coords_ind2 = (selected2 == NULL) ? k: selected2[k];
+          if ((!offset1) || (!offset2)) {
+            rms += sqr_distance((coords1+coords_ind1)->position, (coords2+coords_ind2)->position);
+          } else {
+            rms += sqr_distance_offset((coords1+coords_ind1)->position, (coords2+coords_ind2)->position, offset1, offset2);
+          }
+        }
+      }
+    }
+    rms = sqrt(rms/(double)n_selected);
+    // early termination if close to zero rms is alreay found
+    if (rms < 1E-10) {
+      return(rms);
+    }
+    if (rms < min_rms) {
+      min_rms = rms;
+    }
+  }
+  return (min_rms);
+}

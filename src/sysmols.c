@@ -1,4 +1,4 @@
-// Copyright 2015 Astex Therapautics Ltd.
+// Copyright 2015 Astex Therapeutics Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@
 static void sysmols_init_complex(COMPLEX*);
 static void init_sysmols(SYSMOLS*);
 static void setup_sysmol(MOLECULE*,char*,unsigned int,SETTINGS*);
+static LIST* get_sysmol_atom_ids(MOLECULE*);
 static void fix_symmetry_atoms(MOLECULE*,MOLECULE*);
 static COMPLEX_LIST* sysmols_read_complex_list(char*);
 static void sysmols_read_complex_list_molecules(COMPLEX_LIST*,SETTINGS*);
@@ -102,9 +103,24 @@ SYSMOLS* load_sysmols(SETTINGS *settings) {
     sysmols_read_complex_list_molecules(sysmols->complex_list,settings);
   }
 
+  // read site ligand:
+
+  if (strcmp((params_get_parameter("site_ligand_file"))->value.s,"undefined")) {
+
+    sysmols->site_ligand = read_molecule((params_get_parameter("site_ligand_file"))->value.s);
+  }
+
+  // read template:
+
+  if (strcmp((params_get_parameter("template"))->value.s,"undefined")) {
+
+    sysmols->template = read_molecule((params_get_parameter("template"))->value.s);
+
+    setup_sysmol(sysmols->template,"template",LIGAND_MOLECULE,settings);
+  }
+
   return(sysmols);
 }
-
 
 
 static void sysmols_read_complex_list_molecules(COMPLEX_LIST *complex_list,SETTINGS *settings) {
@@ -141,7 +157,7 @@ static COMPLEX_LIST* sysmols_read_complex_list(char *filename) {
 
   if (file == NULL) {
 
-    error_fn("sysmols_read_complex_list: could not open complex list file '%s'",filename);
+    error_fn("sysmols_read_complex_list: could not open complex list file '%s'",filename); 
   }
 
   n_alloc_complexes = 10;
@@ -158,10 +174,10 @@ static COMPLEX_LIST* sysmols_read_complex_list(char *filename) {
   complex = complexes;
 
   while (!end_of_file(file)) {
-
+	      
     if (read_line(line,MAX_LINE_LEN,file) == NULL)
       break;
-
+ 
     if (line[0] != '#') {
 
       sysmols_init_complex(complex);
@@ -226,6 +242,8 @@ static void init_sysmols(SYSMOLS *sysmols) {
   sysmols->protein = NULL;
   sysmols->water = NULL;
   sysmols->ligand = NULL;
+  sysmols->site_ligand = NULL;
+  sysmols->template = NULL;
   sysmols->symmetry = NULL;
   sysmols->ligand_list = NULL;
   sysmols->complex_list = NULL;
@@ -238,6 +256,8 @@ static void setup_sysmol(MOLECULE *molecule,char *name,unsigned int flags,SETTIN
   strcpy(molecule->name,name);
 
   molecule->flags = flags;
+
+  molecule->atom_ids = get_sysmol_atom_ids(molecule);
 
   if (flags & PROTEIN_MOLECULE) {
 
@@ -255,6 +275,68 @@ static void setup_sysmol(MOLECULE *molecule,char *name,unsigned int flags,SETTIN
 
     warning_fn("setup_sysmol: unkown molecule type for molecule '%s'",molecule->name);
   }
+}
+
+
+
+static LIST* get_sysmol_atom_ids(MOLECULE *molecule) {
+
+  int id,*atom_id,pos;
+  char list_name[100],*list_value,line[MAX_LINE_LEN],value[MAX_LINE_LEN],*word;
+  LIST *atom_ids;
+  PLI_FILE *file;
+
+  sprintf(list_name,"%s_atoms",molecule->name);
+
+  list_value = (params_get_parameter(list_name))->value.s;
+
+  if (!strcmp(list_value,"undefined")) {
+
+    return(NULL);
+  }
+
+  atom_ids = new_list(list_name,sizeof(int),0);
+
+  if (file = open_file(list_value,"r")) {
+
+    while (!end_of_file(file)) {
+
+      if (read_line(line,MAX_LINE_LEN,file) == NULL)
+	break;
+
+      if (sscanf(line,"%d",&id) == 1) {
+
+	atom_id = (int*) add_list_item(atom_ids);
+
+	*atom_id = id;
+      }
+    }
+
+    close_file(file);
+
+  } else {
+
+    pos = 0;
+
+    strcpy(value,list_value);
+
+    while (word = nextword(value,',',&pos)) {
+
+      if (sscanf(word,"%d",&id)) {
+
+	atom_id = (int*) add_list_item(atom_ids);
+
+	*atom_id = id;	
+      }
+    }
+  }
+
+  if (atom_ids->n_items == 0) {
+
+    error_fn("%s: no atoms ids for molecule '%s'",__func__,molecule->name);
+  }
+
+  return(atom_ids);
 }
 
 

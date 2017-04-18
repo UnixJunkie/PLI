@@ -2,3 +2,8 @@ bin/
 obj/
 *.o
 *~
+.cproject
+.project
+.settings/
+Debug/
+

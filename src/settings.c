@@ -1,4 +1,4 @@
-// Copyright 2015 Astex Therapautics Ltd.
+// Copyright 2015 Astex Therapeutics Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,21 +18,30 @@
 
 
 
+static SETTINGS *pli_settings = NULL;
+
+
+
 static void init_settings(SETTINGS*);
 static unsigned int get_output_flags(char*);
 
 
 
-SETTINGS* get_settings(int nargs,char **args) {
+SETTINGS* get_settings(void) {
+
+  return(pli_settings);
+}
+
+
+
+void prep_settings(int nargs,char **args) {
 
   SETTINGS *settings;
 
   // io setup:
-
   init_io();
 
   // set all parameters from command line and input file(s):
-
   params_init(nargs,args);
 
   // allocate memory for settings:
@@ -44,32 +53,49 @@ SETTINGS* get_settings(int nargs,char **args) {
     error_fn("get_settings: out of memory allocating settings");
   }
 
+  pli_settings = settings;
+
+
   // initialise "global" parameters and settings:
 
   init_settings(settings);
 
+  set_atomio(NULL,NULL);
+  set_bondio(NULL,NULL);
+  set_residueio(NULL,NULL);
+  set_siteio(NULL,NULL);
+
   // initialise parameters in other files:
+  // TODO: this approach should be retired
 
   init_histogram_settings();
-  init_site_settings();
   init_field_settings();
   init_contact_settings();
   init_ff_settings();
   init_minimise_settings();
-  init_pliff_settings();
 
   // other settings:
 
-  init_site(settings);
   init_ff(settings);
-  init_score(settings);
   init_field_probes(settings);
 
-  // load system molecules:
+ // load system molecules:
 
   settings->sysmols = load_sysmols(settings);
 
-  return(settings);
+  // fixed seeds?
+  
+  if (settings->use_fixed_random_seeds) {
+
+    use_fixed_seed();
+  }
+}
+
+
+
+// TODO: free any memory used by pli_settings:
+
+void unprep_settings(void) {
 }
 
 
@@ -86,6 +112,7 @@ static void init_settings(SETTINGS *settings) {
   ELEMENT *element;
   UNITED_ATOM *uatom;
   ATOM_TYPING_SCHEME *scheme;
+  PLI_PARAM *param;
 
   settings->pli_dir = get_pli_dir();
 
@@ -94,16 +121,22 @@ static void init_settings(SETTINGS *settings) {
 
   // general parameters:
 
+  settings->use_fixed_random_seeds = (params_get_parameter("use_fixed_random_seeds"))->value.i;
+
   settings->mode = get_mode((params_get_parameter("mode"))->value.s);
 
   settings->sfunc = get_sfunc((params_get_parameter("sfunc"))->value.s);
+
+  if (settings->sfunc->init) {
+
+    settings->sfunc->init();
+  }
 
   strcpy(settings->jobname,(params_get_parameter("jobname"))->value.s);
 
   strcpy(settings->protein_file,(params_get_parameter("protein"))->value.s);
   strcpy(settings->ligand_file,(params_get_parameter("ligand"))->value.s);
   strcpy(settings->symmetry_file,(params_get_parameter("symmetry"))->value.s);
-  strcpy(settings->selection,(params_get_parameter("selection"))->value.s);
 
   // output control:
 
@@ -111,7 +144,6 @@ static void init_settings(SETTINGS *settings) {
 
   settings->oflags = get_output_flags((params_get_parameter("output"))->value.s);
   settings->oformat = get_output_format((params_get_parameter("oformat"))->value.s);
-  settings->astyle = get_atom_style((params_get_parameter("astyle"))->value.s);
 
   strcpy(settings->oatoms,(params_get_parameter("oatoms"))->value.s);
 
@@ -136,6 +168,8 @@ static void init_settings(SETTINGS *settings) {
 
   settings->id1 = (params_get_parameter("id1"))->value.i;
   settings->id2 = (params_get_parameter("id2"))->value.i;
+  settings->eid1 = (params_get_parameter("eid1"))->value.i;
+  settings->eid2 = (params_get_parameter("eid2"))->value.i;
 
   strcpy(settings->hist_name,(params_get_parameter("hist_name"))->value.s);
 
@@ -148,7 +182,6 @@ static void init_settings(SETTINGS *settings) {
 
   settings->force_field = NULL;
 
-  settings->water_vdw_radius = 1.4;
   settings->max_covalent_dist = 2.5;
   settings->max_contact_dist = 6.5;
 
@@ -157,15 +190,16 @@ static void init_settings(SETTINGS *settings) {
   read_atom_typing_scheme(settings->types_file,settings->atom_typing_scheme);
   scheme = settings->atom_typing_scheme;
   // set water radius:
-
-  uatom = get_united_atom("H2O",scheme);
-
-  if (uatom == NULL) {
-
-    error_fn("get_settings: water united atom undefined");
-  }
-
-  settings->water_vdw_radius = uatom->vdw_radius;
+  // TODO: do we need to set water united atom radii as well?
+//  uatom = get_united_atom("H2O",scheme);
+//
+//  if (uatom == NULL) {
+//
+//    error_fn("get_settings: water united atom undefined");
+//  }
+//
+//  settings->water_vdw_radius = uatom->vdw_radius;
+  settings->water_vdw_radius = (params_get_parameter("water_vdw_radius")->value.d);
 
   // set maximum covalent distance:
 
@@ -197,9 +231,19 @@ static void init_settings(SETTINGS *settings) {
 
   //settings->max_contact_dist += 3.0;
 
+  // set optimisation degrees of freedom:
+
+  settings->dof = dofs_get_space((params_get_parameter("dof"))->value.s);;
+
   // set selection:
 
+  param = params_get_parameter("selection");
+
+  strcpy(settings->selection,param->value.s);
+
   if (!strcmp(settings->selection,"undefined")) {
+
+    params_set_parameter(param,settings->mode->selection);
 
     strcpy(settings->selection,settings->mode->selection);
   }
@@ -215,58 +259,60 @@ static void init_settings(SETTINGS *settings) {
 static unsigned int get_output_flags(char *flags) {
 
   unsigned int oflags;
-  char *flag;
+  char *flag,cflags[MAX_LINE_LEN];
 
   oflags = OUTPUT_NONE;
 
-  flag = strtok(flags,",");
+  strcpy(cflags,flags);
+
+  flag = strtok(cflags,",");
 
   while (flag) {
 
     if (!strcmp(flag,"system")) {
 
       oflags |= OUTPUT_SYSTEM;
-
+      
     } else if (!strcmp(flag,"atoms")) {
-
+      
       oflags |= OUTPUT_ATOMS;
-
+      
     } else if (!strcmp(flag,"contacts")) {
-
+      
       oflags |= OUTPUT_CONTACTS;
-
+      
     } else if (!strcmp(flag,"hbonds")) {
-
+      
       oflags |= OUTPUT_HBONDS;
-
+      
     } else if (!strcmp(flag,"clashes")) {
-
+      
       oflags |= OUTPUT_CLASHES;
-
+      
     } else if (!strcmp(flag,"scores")) {
-
+      
       oflags |= OUTPUT_SCORES;
-
+      
     } else if (!strcmp(flag,"pdb")) {
-
+            
       oflags |= OUTPUT_PDB;
-
+      
     } else if (!strcmp(flag,"mol")) {
-
+            
       oflags |= OUTPUT_MOL;
-
+      
     } else if (!strcmp(flag,"axes")) {
-
+      
       oflags |= OUTPUT_AXES;
-
+      
     } else if (!strcmp(flag,"vpts")) {
-
+      
       oflags |= OUTPUT_VPTS;
-
+   
     } else if (!strcmp(flag,"geometries")) {
-
+      
       oflags |= OUTPUT_GEOMETRIES;
-
+      
     } else if (!strcmp(flag,"covalent")) {
 
       oflags |= OUTPUT_COVALENT;
@@ -274,11 +320,11 @@ static unsigned int get_output_flags(char *flags) {
     } else if (!strcmp(flag,"intra")) {
 
       oflags |= OUTPUT_INTRAMOLECULAR;
-
+      
     } else if (!strcmp(flag,"sas_stats")) {
 
       oflags |= OUTPUT_SAS_STATS;
-
+      
     } else if (!strcmp(flag,"ligand")) {
 
       oflags |= OUTPUT_LIGAND;
@@ -289,15 +335,22 @@ static unsigned int get_output_flags(char *flags) {
 
     } else if (!strcmp(flag,"stypes")) {
 
-      oflags |= OUTPUT_STYPES;
-
+      oflags |= OUTPUT_STYPES;  
+ 
     } else if (!strcmp(flag,"site_stats")) {
 
       oflags |= OUTPUT_SITE_STATS;
+    
+    } else if (!strcmp(flag, "triplets")) {
 
+      oflags |= OUTPUT_TRIPLETS;
+ 
     } else if (strcmp(flag,"none")) {
 
-      error_fn("set_output_flags: unknown output option '%s'",flag);
+      // TODO: commented this out here, to allow -output to be used for wider
+      // range of purposes - should retire this function and all the oflags
+
+      //error_fn("set_output_flags: unknown output option '%s'",flag);
     }
 
     flag = strtok(NULL,",");
@@ -305,3 +358,5 @@ static unsigned int get_output_flags(char *flags) {
 
   return(oflags);
 }
+
+

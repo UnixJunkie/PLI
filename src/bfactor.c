@@ -1,4 +1,4 @@
-// Copyright 2015 Astex Therapautics Ltd.
+// Copyright 2015 Astex Therapeutics Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -118,6 +118,30 @@ void normalise_bfactors(SYSTEM *system) {
     for (i=0,atom=symmetry->atom;i<symmetry->natoms;i++,atom++) {
 
       atom->bfactor = (stdb > 1E-10) ? (atom->bfactor - avgb)/stdb : 0.0;
+    }
+  }
+}
+
+
+
+void calc_molecule_ami(MOLECULE *molecule,SETTINGS *settings) {
+
+  int i;
+  ATOM *atom;
+  SYSTEM *system;
+  HISTOGRAM *histogram;
+
+  system = molecule->molsystem;
+
+  for (i=0,atom=molecule->atom;i<molecule->natoms;i++,atom++) {
+
+    if ((atom->element->id != HYDROGEN) && (!(atom->flags & SKIP_ATOM))) {
+
+      atom->tdf = calc_atom_simb(atom,system,10);
+
+      histogram = get_histogram(settings->force_field->AMI_HISTOGRAM_ID);
+
+      atom->lnPu = log(histogram_X2Y(histogram,atom->tdf));
     }
   }
 }

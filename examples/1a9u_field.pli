@@ -1,7 +1,7 @@
 mode field
 grid_file 1a9u_field.grd
 #grid_file 1a9u_field.grd.gz
-probe_name Aromatic CH
+probe_name Secondary amide =O
 #grid_spacing 0.2
 keep_waters none
 exact_voronoi_areas 0

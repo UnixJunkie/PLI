@@ -1,4 +1,4 @@
-// Copyright 2015 Astex Therapautics Ltd.
+// Copyright 2015 Astex Therapeutics Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,24 +18,12 @@
 
 
 
-double lennard_jones_energy(double d,double A,double B) {
+double lennard_jones_energy(double d,double Do,double Eo,double order) {
 
   if (d < 1.0E-10) {
 
     error_fn("lennard_jones_energy: d is too short (%.6lfA)",d);
   }
 
-  return((A/pow(d,12)) - (B/pow(d,6)));
-}
-
-
-
-double lennard_jones_energy_DE(double d,double Do,double Eo) {
-
-  if (d < 1.0E-10) {
-
-    error_fn("lennard_jones_energy_DE: d is too short (%.6lfA)",d);
-  }
-
-  return(Eo*(pow(Do/d,12) - 2.0*pow(Do/d,6)));
+  return(Eo*(pow(Do/d,2.0*((double) order)) - 2.0*pow(Do/d,(double) order)));
 }

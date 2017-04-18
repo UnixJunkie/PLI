@@ -1,4 +1,4 @@
-// Copyright 2015 Astex Therapautics Ltd.
+// Copyright 2015 Astex Therapeutics Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -60,17 +60,17 @@ void write_insight_map(char *filename,MAP *map,int save_mask) {
   ny = grid->npoints[1];
   nz = grid->npoints[2];
 
-  if (map->type == INTEGER_MAP) {
+  if (!strcmp(map->type->name,"int")) {
 
     imatrix = (int***) map->matrix;
 
-  } else if (map->type == DOUBLE_MAP) {
+  } else if (!strcmp(map->type->name,"double")) {
 
     fmatrix = (double***) map->matrix;
 
   } else {
 
-    error_fn("write_insight_map: cannot save this map type");
+    error_fn("%s: cannot save this map type",__func__);
   }
 
   mask = map->mask;
@@ -96,12 +96,12 @@ void write_insight_map(char *filename,MAP *map,int save_mask) {
 
 	} else {
 
-	  if (map->type == DOUBLE_MAP) {
+	  if (!strcmp(map->type->name,"double")) {
 
 	    write_line(file,"%10.3lf\n",fmatrix[ix][iy][iz]);
 
-	  } else {
-
+	  } else if (!strcmp(map->type->name,"double")) {
+	    
 	    write_line(file,"%10.3lf\n",(double) imatrix[ix][iy][iz]);
 	  }
 	}
@@ -141,11 +141,9 @@ MAP* read_insight_map(char *filename) {
     error_fn("read_insight_map: failed to read format from %s",filename);
   }
 
-  map = new_map(title);
+  map = new_map(title,"double",NULL);
 
-  map->type = DOUBLE_MAP;
-
-  map->grid = new_grid();
+  map->grid = new_grid(0.0,0.0);
 
   grid = map->grid;
 

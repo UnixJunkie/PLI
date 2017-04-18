@@ -1,4 +1,4 @@
-// Copyright 2015 Astex Therapautics Ltd.
+// Copyright 2015 Astex Therapeutics Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -308,10 +308,14 @@ static int resolve_ambiguous_types(SYSTEM *system) {
 
     warning_fn("resolve_ambiguous_types: unresolved atom types for the following atoms");
 
+    set_atomio(NULL,"basic");
+
     for (i=0,atomp=atomlist->atom;i<atomlist->natoms;i++,atomp++) {
 
-      write_atom(PLI_STDERR,*atomp,BASIC_ASTYLE,FORMATTED,0);
+      write_atom(PLI_STDERR,*atomp);
     }
+
+    set_atomio(NULL,NULL);
   }
 
   free_atomlist(atomlist);
@@ -863,6 +867,7 @@ static ALT_ATOM_TYPE* alt_type_from_contacts(SYSTEM *system,ATOM *atom,double *p
 
   best_alt_type = alt_type_from_rules(system,atom,probability);
 
+  // TODO: check!
   if (best_alt_type) {
 
     //*rule = 1;

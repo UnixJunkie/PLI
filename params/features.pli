@@ -1,0 +1,284 @@
+#---------------------------------------------------------------------------------------------------------------------------
+# bond typing table
+#
+# these patterns are used to set bond types prior to assigning feature groups to atoms
+#---------------------------------------------------------------------------------------------------------------------------
+#            name                 match smarts                                                    bond typed smarts
+#---------------------------------------------------------------------------------------------------------------------------
+bond_pattern "secondary amide"    [#8;D1;PROTEIN][#6;D3]([#7;D2])[#6]                             *=*(*)*
+bond_pattern "carboxylic acid"    [#6;PROTEIN][#6;D3]([#8;D1])[#8;D1]                             **(=*)*
+bond_pattern "primary amide"      [#6;PROTEIN;ASN,GLN][#6;D3]([#8;D1])[#7;D1]                     **(=*)*
+bond_pattern "guanidine"          [#7;D2;PROTEIN;ARG][#6;D3]([#7;D1])[#7;D1]                      **(=*)*
+bond_pattern "imidazole"          [#6;D2;PROTEIN;HIS][#6;D3]1[#6;D2][#7;D2][#6;D2][#7;D2]1        **1=***=*1
+bond_pattern "phenyl"             [#6;D2;PROTEIN;PHE,TYR][#6;D3]1[#6][#6][#6][#6][#6]1            **1=**=**=*1
+bond_pattern "indole"             [#6;D2;PROTEIN;TRP][#6]1[#6][#7][#6]2[#6]1[#6][#6][#6][#6]2     **1=***2=*1*=**=*2
+#---------------------------------------------------------------------------------------------------------------------------
+
+
+
+#---------------------------------------------------------------------------------------------------------------------------
+# hybridisation definitions
+#---------------------------------------------------------------------------------------------------------------------------
+#            smarts                      hyb
+#---------------------------------------------------------------------------------------------------------------------------
+hybdef       [#6,#7]#*                   sp
+hybdef       [#6,#7](=*)=*               sp
+hybdef       [#6,#7,#8]=*                sp2
+hybdef       [#7;!pln]                   sp3
+hybdef       [#7;pln]                    sp2
+hybdef       [#7]*=*                     sp2
+hybdef       [#16;D1]=*                  sp2
+hybdef       *                           sp3
+#---------------------------------------------------------------------------------------------------------------------------
+
+
+
+#---------------------------------------------------------------------------------------------------------------------------
+# feature types table
+#---------------------------------------------------------------------------------------------------------------------------
+#            name    description       off-centred    radius     sigma     distance(s)
+#---------------------------------------------------------------------------------------------------------------------------
+ftype         B       "boron"              no          1.00        0       *[0.00]
+ftype         C       "carbon"             no          1.00        0       *[0.00]
+ftype         N       "nitrogen"           no          1.00        0       *[0.00]
+ftype         O       "oxygen"             no          1.00        0       *[0.00]
+ftype         F       "fluorine"           no          1.00        0       *[0.00]
+ftype         P       "phosphorous"        no          1.00        0       *[0.00]
+ftype         S       "sulfur"             no          1.00        0       *[0.00]
+ftype         Cl      "chlorine"           no          1.00        0       *[0.00]
+ftype         Br      "bromine"            no          1.00        0       *[0.00]
+ftype         I       "iodine"             no          1.00        0       *[0.00]
+ftype         h       "hydrogen"           yes         1.00       30       *[1.00];C[1.10];N[1.00];O[1.00];S[1.00]
+ftype         p       "p-orbital"          yes         0.00       30       *[1.00]
+ftype         lp      "lone pair"          yes         0.00       30       *[1.00]
+ftype         sh      "sigma hole"         yes         0.00       30       *[1.00]
+#---------------------------------------------------------------------------------------------------------------------------
+
+
+
+#---------------------------------------------------------------------------------------------------------------------------
+# feature group types table
+#
+# TODO: optimise polar coordinates involving lone pairs - e.g. for alcohols and water
+#---------------------------------------------------------------------------------------------------------------------------
+#          name      el    hyb      charge   maxf    features
+#---------------------------------------------------------------------------------------------------------------------------
+fgtype      B        B     sp3        0       1       B[]
+fgtype      CH4      C     sp3        0       5       C[];h[0,0];h[109,0];h[109,-120];h[109,120]
+fgtype      -CH3     C     sp3        0       4       C[];h[69,0];h[69,-120];h[69,120]
+fgtype      >CH2     C     sp3        0       3       C[];h[53,-90];h[53,90]
+fgtype      >CH-     C     sp3        0       2       C[];h[0,0]
+fgtype      >C<      C     sp3        0       1       C[]
+fgtype      =CH2     C     sp2        0       5       C[];h[58,0];h[58,180];p[90,-90];p[90,90]
+fgtype      =CH-     C     sp2        0       4       C[];h[0,0];p[90,-90];p[90,90]
+fgtype      =C<      C     sp2        0       3       C[];p[0,0];p[180,0]
+fgtype      #CH      C     sp         0       3       C[];h[0,0];p[90]
+fgtype      #C       C     sp        -1       3       C[];lp[0,0];p[90]
+fgtype      =C=      C     sp         0       2       C[];p[90]
+fgtype      NH3      N     sp3        0       5       N[];lp[0,0];h[109,0];h[109,-120];h[109,120]
+fgtype      NH4      N     sp3        1       5       N[];h[0,0];h[109,0];h[109,-120];h[109,120]
+fgtype      -NH2     N     sp3        0       4       N[];h[70,0];h[70,120];lp[70,-120]
+fgtype      -NH2p    N     sp2        0       5       N[];h[59,0];h[59,180];p[90,-90];p[90,90]
+fgtype      -NH3     N     sp3        1       4       N[];h[68,0];h[68,120];h[68,-120]
+fgtype      -NH      N     sp3       -1       4       N[];h[70,0];lp[70,120];lp[70,-120]
+fgtype      -NHp     N     sp2       -1       5       N[];h[59,0];lp[59,180];p[90,-90];p[90,90]
+fgtype      >NH      N     sp3        0       3       N[];h[53,-90];lp[53,90]
+fgtype      >NHp     N     sp2        0       4       N[];h[0,0];p[90,-90];p[90,90]
+fgtype      >NH2     N     sp3        1       3       N[];h[53,-90];h[53,90]
+fgtype      >N       N     sp3       -1       3       N[];lp[53,-90];lp[53,90]
+fgtype      >Np      N     sp2       -1       4       N[];lp[0,0];p[90,-90];p[90,90]
+fgtype      >N-      N     sp3        0       2       N[];lp[0,0]
+fgtype      >Np-     N     sp2        0       3       N[];p[0,0];p[180,0]
+fgtype      >NH-     N     sp3        1       2       N[];h[0,0]
+fgtype      >N<      N     sp3        1       1       N[]
+fgtype      #N       N     sp         0       3       N[];lp[0,0];p[90]
+fgtype      =N=      N     sp         1       2       N[];p[90]
+fgtype      H2O      O     sp3        0       5       O[];h[52,0];h[52,180];lp[128,-90];lp[128,90]
+fgtype      -OH      O     sp3        0       5       O[];h[72,0];lp[72,-120];lp[72,120]
+fgtype      -O       O     sp3       -1       4       O[];lp[54]
+fgtype      -Op      O     sp2       -1       5       O[];lp[58,0];lp[58,180];p[90,-90];p[90,90]
+fgtype      >O       O     sp3        0       3       O[];lp[53,-90];lp[53,90]
+fgtype      H2S      S     sp3        0       5       S[];h[52,0];h[52,180];lp[128,-90];lp[128,90]
+# lp angle?
+fgtype      -SH      O     sp3        0       4       S[];h[83,0];lp[83,-120];lp[83,120]
+fgtype      -S       S     sp3       -1       4       S[];lp[83]
+fgtype      >S       S     sp3        0       3       S[];lp[75,-90];lp[75,90]
+fgtype      >Sp      S     sp3        0       5       S[];sh[47,0];sh[47,180];p[90,-90];p[90,90]
+fgtype      =S       S     sp2        0       5       S[];lp[75,0];lp[75,180];p[90,-90];p[90,90]
+fgtype      =S<      S     sp3        0       2       S[];lp[0,0]
+fgtype      >S<      S     sp3        0       1       S[]
+fgtype      >>S<     S     sp3        0       1       S[]
+fgtype      S        S     sp3        0       1       S[]
+fgtype      >P<      P     sp3        0       1       P[]
+fgtype      -F       F     sp3        0       1       F[]
+fgtype      -Cl      Cl    sp3        0       3       Cl[];sh[0,0];lp[90]
+fgtype      -Br      Br    sp3        0       3       Br[];sh[0,0];lp[90]
+fgtype      -I       I     sp3        0       3       I[];sh[0,0];lp[90]
+#---------------------------------------------------------------------------------------------------------------------------
+
+
+
+
+
+#---------------------------------------------------------------------------------------------------------------------------
+# feature group patterns table
+#
+# the smart patterns map atoms in a molecule to feature group types. The order of these is important in some cases as the
+# type of the first matching pattern is returned. The patterns are organised such that, where possible, the neutral form
+# is matched first in cases where the hydrogen atoms of the molecule are not present or not used for atom typing. 
+#---------------------------------------------------------------------------------------------------------------------------
+#              fgtype      smarts
+#---------------------------------------------------------------------------------------------------------------------------
+fgpattern      B           [#5]
+fgpattern      CH4         [C;D0;H4]
+fgpattern      -CH3        [C;D1;H3;sp3]
+fgpattern      >CH2        [C;D2;H2](*)*
+fgpattern      >CH-        [C;D3;H1](*)(*)*
+fgpattern      >C<         [C;D4;H0]
+fgpattern      =CH2        [C;D1;H2]=*
+fgpattern      =CH-        [#6;D2;H1](=*)*
+fgpattern      =C<         [#6;D3;H0](=*)(*)*
+fgpattern      #CH         [C;D1;H1]#*
+fgpattern      #C          [C;D1;H0]#*
+fgpattern      =C=         [C;D2;H0](#*)*
+fgpattern      =C=         [C;D2;H0](=*)=*
+fgpattern      NH3         [N;D0;H3]
+fgpattern      NH4         [N;D0;H4]
+fgpattern      -NH2        [N;D1;H2;sp3]*
+fgpattern      -NH3        [N;D1;H3;sp3]*
+fgpattern      -NH         [N;D1;H1;sp3]*
+fgpattern      -NH2p       [N;D1;H2;sp2]
+fgpattern      -NHp        [N;D1;H1;sp2]
+fgpattern      #N          [N;D1;H0]#*
+fgpattern      >NH         [N;D2;H1;sp3]
+fgpattern      >NH2        [N;D2;H2;sp3]
+fgpattern      >N          [N;D2;H0;sp3]
+fgpattern      >NHp        [#7;D2;H1;sp2](*)*
+fgpattern      >Np         [#7;D2;H0;sp2](*)*
+fgpattern      >Np         [#7;D2;H0;sp2](=*)*
+fgpattern      >NHp        [#7;D2;H1;sp2](=*)*
+fgpattern      =N=         [N;D2;H0](#*)*
+fgpattern      =N=         [N;D2;H0](=*)=*
+fgpattern      >N-         [N;D3;H0;sp3](*)(*)*
+fgpattern      >NH-        [N;D3;H1;sp3](*)(*)*
+fgpattern      >Np-        [#7;D3;H0;sp2](*)(*)*
+fgpattern      >Np-        [#7;D3;H0](=*)(*)*
+fgpattern      >Np-        [N;D3;H0](=*)(=*)*
+fgpattern      >N<         [N;D4;H0]
+fgpattern      H2O         [O;D0;H2]
+fgpattern      -OH         [O;D1;H1]*
+fgpattern      -O          [O;D1;H0]~[*;sp3]
+fgpattern      -Op         [O;D1;H0]~[*;sp2]
+fgpattern      >O          [#8;D2;H0]
+fgpattern      H2S         [S;D0;H2]
+fgpattern      -SH         [S;D1;H1]*
+fgpattern      -S          [S;D1;H0]*
+fgpattern      >S          [S;D2;H0]
+fgpattern      >Sp         [s;D2;H0]
+fgpattern      =S          [S;D1;H0]=*
+fgpattern      =S<         [S;D3;H0](=*)(*)*
+fgpattern      >S<         [S;D4;H0](*)(*)(*)*
+fgpattern      >>S<        [S;D4;H0](=*)(=*)(*)(*)
+fgpattern      S           [#16]
+fgpattern      >P<         [P;D4;H0](*)(*)(*)*
+fgpattern      -F          [F;D1;H0]
+fgpattern      -Cl         [Cl;D1;H0]
+fgpattern      -Br         [Br;D1;H0]
+fgpattern      -I          [I;D1;H0]
+#---------------------------------------------------------------------------------------------------------------------------
+
+
+
+
+#---------------------------------------------------------------------------------------------------------------------------
+# fgroup geometries
+#---------------------------------------------------------------------------------------------------------------------------
+# feature positions are defined using the polar coordinates alpha and beta 
+# 
+# alpha is the angle with u
+# beta is the rotation around u, relative to the plane defined by v
+#---------------------------------------------------------------------------------------------------------------------------
+#              smarts                       u axis                                                  v axis
+#---------------------------------------------------------------------------------------------------------------------------
+fggeom         [*;D0]                       a[1,0,0]                                                a[0,1,0]
+fggeom         [*;D1]~[*;D1]                v[1,0]                                                  p[v[1,0],a[0,1,0]]
+fggeom         [*;D1]#*                     v[1,0]                                                  []
+fggeom         [*;D2]#*                     v[0,1]                                                  []
+fggeom         [*;D2](=*)=*                 v[0,1]                                                  []
+fggeom         [*;D1]~[*;D2]~*              v[1,0]                                                  p[v[1,2],v[1,0]]
+fggeom         [*;D1]~[*;D3;sp3](~*)~*      v[1,0]                                                  p[v[1,0],s[v[1,2],v[1,3]]]
+fggeom         [*;D1]~[*;D3;sp2](=O)~*      v[1,0]                                                  p[v[1,0],v[1,2]]
+fggeom         [*;D1]~[*;D3;sp2](~*)~*      v[1,0]                                                  s[p[v[1,0],v[1,2]],p[v[1,3],v[1,0]]]
+fggeom         [*;D1]~[*;D4](~*)(~*)~*      v[1,0]                                                  p[v[1,0],v[1,2]]
+fggeom         [*;D2](~*)~*                 s[v[1,0],v[2,0]]                                        p[v[0,1],v[0,2]]
+fggeom         [*;D3;sp3](~*)(~*)~*         s[v[1,0],v[2,0],v[3,0]]                                 []
+fggeom         [*;D3;sp2](~*)(~*)~*         s[p[v[0,1],v[0,2]],p[v[0,2],v[0,3]],p[v[0,3],v[0,1]]]   []
+fggeom         *                            []                                                      []
+#---------------------------------------------------------------------------------------------------------------------------
+
+
+
+
+#---------------------------------------------------------------------------------------------------------------------------
+# feature group conformer table
+#---------------------------------------------------------------------------------------------------------------------------
+#              smarts                            u axis           v axis
+#---------------------------------------------------------------------------------------------------------------------------
+fgconf         [CH4]                             free             [0-120]
+fgconf         [-CH3][*;D1]                      fixed            fixed
+fgconf         [-CH3][C;D2]*                     fixed            fixed
+fgconf         [-CH3][C;D3](*)*                  fixed            fixed
+fgconf         [-CH3][C;D4](*)(*)*               fixed            fixed
+fgconf         [-CH3]                            fixed            [1,0];[1,40];[1,80]
+fgconf         [=CH2]=*                          fixed            [1,0];[1,0]
+fgconf         [NH3]                             free             [0-120]
+fgconf         [NH4]                             free             [0-120]
+fgconf         [-NH2][C;D2]*                     fixed            [1,0];[1,-120];[1,120]
+fgconf         [-NH2][C;D3](*)*                  fixed            [1,0];[1,-120];[1,120]
+fgconf         [-NH2][C;D4](*)(*)*               fixed            [1,0];[1,-120];[1,120]
+fgconf         [-NH2][#6;D3;sp2]                 fixed            [1,30];[1,-150]
+fgconf         [-NH2]                            fixed            [1,0];[1,-120];[1,120]
+fgconf         [-NH3][C;D2]*                     fixed            fixed
+fgconf         [-NH3][C;D3](*)*                  fixed            fixed
+fgconf         [-NH3][C;D4](*)(*)*               fixed            fixed
+fgconf         [-NH3]                            fixed            [1,0];[1,40];[1,80]
+fgconf         [-NH][C;D2]*                      fixed            [1,0];[1,-120];[1,120]
+fgconf         [-NH][C;D3](*)*                   fixed            [1,0];[1,-120];[1,120]
+fgconf         [-NH][C;D4](*)(*)*                fixed            [1,0];[1,-120];[1,120]
+fgconf         [-NH][#6;D3;sp2]                  fixed            [1,30];[1,-150]
+fgconf         [-NH]                             fixed            [1,0];[1,-120];[1,120]
+# TODO: -NHp ???
+fgconf         [=NH]                             fixed            [1,0];[1,180]
+fgconf         [>NH]                             fixed            [1,0];[1,180]
+fgconf         [H2O]                             free             [0-180]
+fgconf         [-OH][C;D2]*                      fixed            [1,0];[1,-120];[1,120]   
+fgconf         [-OH][C;D3](*)*                   fixed            [1,0];[1,-120];[1,120]
+fgconf         [-OH][C;D4](*)(*)*                fixed            [1,0];[1,-120];[1,120]
+fgconf         [-OH]C(=O)*                       fixed            [99,0];[1,180]
+fgconf         [-OH][#6;D3;sp2]                  fixed            [1,0];[1,180]
+fgconf         [-OH]                             fixed            [1,0];[1,-120];[1,120]
+fgconf         [H2S]                             free             [0-180]
+fgconf         [-SH][C;D2]*                      fixed            [1,0];[1,-120];[1,120]   
+fgconf         [-SH][C;D3](*)*                   fixed            [1,0];[1,-120];[1,120]
+fgconf         [-SH][C;D4](*)(*)*                fixed            [1,0];[1,-120];[1,120]
+fgconf         [-SH][#6;D3;sp2]                  fixed            [1,0];[1,180]
+fgconf         [-SH]                             fixed            [1,0];[1,-120];[1,120]
+fgconf         *                                 fixed            fixed
+#---------------------------------------------------------------------------------------------------------------------------
+
+
+
+#---------------------------------------------------------------------------------------------------------------------------
+# feature group transformations table
+#
+#---------------------------------------------------------------------------------------------------------------------------
+#              state1                            state2                         propensity     invert
+#---------------------------------------------------------------------------------------------------------------------------
+fgtrans        C[-NH2]                           C[-NH3]                               100       1    primary amine protonation
+fgtrans        C(=[-Op])[-OH]                    C([-OH])=[-Op]                          1       0    carboxylic acid tautomerisation
+fgtrans        C(=O)[-OH]                        C(=O)[-Op]                            100       1    carboxylic acid deprotonation
+fgtrans        [>NHp]1c=[>Np]c=c1                [>Np]1=c[>NHp]c=c1                      1       0    imidazole tautomerisation
+fgtrans        [>NHp]1c=[>Np]c=c1                [>NHp]1c=[>NHp]c=c1                     1       1    imidazole protonation
+fgtrans        [-NHp;ARG]=[C;D3](N)N             [-NH2p;ARG]=[C;D3](N)N                100       1    arginine protonation
+#---------------------------------------------------------------------------------------------------------------------------
+

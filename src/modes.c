@@ -1,4 +1,4 @@
-// Copyright 2015 Astex Therapautics Ltd.
+// Copyright 2015 Astex Therapeutics Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,13 +17,13 @@
 #include "pli.h"
 
 
-
-static PLI_MODE pli_modes[] = { { "contacts",     run_contacts,      "ligand",  0 },
-				{ "type",         run_type,          "ligand",  0 },
-				{ "score",        run_score,         "complex", 1 },
-				{ "field",        run_field,         "site",    0 },
-				{ "help",         run_help,          "",        0 },
-				{ "last",         NULL,              "",        0 } };
+static PLI_MODE pli_modes[] = { { "contacts",     run_contacts,      "ligand",  0, 1 },
+				{ "type",         run_type,          "ligand",  0, 1 },
+				{ "score",        run_score,         "ligand",  1, 1 },
+				{ "field",        run_field,         "site",    0, 0 },
+                                { "fragmap",      run_fragmap,       "site",    0, 0 },
+                                { "help",         run_help,          "",        0, 0 },
+				{ "last",         NULL,              "",        0, 0 } };
 
 
 

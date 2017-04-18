@@ -1,4 +1,4 @@
-// Copyright 2015 Astex Therapautics Ltd.
+// Copyright 2015 Astex Therapeutics Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,13 +17,12 @@
 #include "pli.h"
 
 #define PLIFF_SYSTEM_SCORE 0
-#define PLIFF_SYSTEM_NB_SCORE 1
-#define PLIFF_SYSTEM_CONTACT_SCORE 2
-#define PLIFF_SYSTEM_GEOMETRY_SCORE 3
-#define PLIFF_SYSTEM_TRIPLET_SCORE 4
-#define PLIFF_SYSTEM_RB_SCORE 5
-#define PLIFF_SYSTEM_TC_SCORE 6
-#define PLIFF_SYSTEM_LIGAND_SCORE 7
+#define PLIFF_SYSTEM_INTER_SCORE 1
+#define PLIFF_SYSTEM_INTRA_SCORE 2
+#define PLIFF_SYSTEM_CONTACT_SCORE 3
+#define PLIFF_SYSTEM_GEOMETRY_SCORE 4
+#define PLIFF_SYSTEM_TRIPLET_SCORE 5
+
 
 #define PLIFF_ATOM_SCORE 0
 #define PLIFF_ATOM_NB_SCORE 1
@@ -43,20 +42,33 @@
 #define PLIFF_CONTACT_SCALE 8
 
 
+static PLI_SFUNC *pliff_sfunc = NULL;
 
 static double pliff_zero_coeff = 0.0;
 static double pliff_contact_coeff = 0.0034;
 static double pliff_geometry_coeff = 0.0034;
 
-static int pliff_recalc_contacts = 1;
+static int pliff_intra_torsion = 1;
+static int pliff_intra_clash = 1;
+static int pliff_intra_vdw = 0;
+
+static double pliff_triplet_optimal_angle = 105.0;
+
 static int pliff_use_areas = 1;
 static int pliff_ignore_long_contacts = 0;
 
 
 
-static void pliff_score_contacts(ATOMLIST*,ATOM_TYPING_SCHEME*,FORCE_FIELD*);
-static void pliff_scale_contacts(ATOMLIST*,ATOM_TYPING_SCHEME*,FORCE_FIELD*);
-static void pliff_score_atoms(ATOMLIST*);
+static double pliff_score_inter_molecular(SYSTEM*);
+static double pliff_score_intra_molecular(SYSTEM*);
+static double pliff_score_intra_torsion(SYSTEM*);
+static double pliff_score_intra_vdw(SYSTEM*);
+
+static double pliff_score_intra_molecular_gradient(DOF*,SYSTEM*);
+
+static void pliff_score_contacts(SYSTEM*,ATOM_TYPING_SCHEME*,FORCE_FIELD*);
+static void pliff_scale_contacts(SYSTEM*,ATOM_TYPING_SCHEME*,FORCE_FIELD*);
+static void pliff_score_atoms(SYSTEM*);
 static void pliff_scale_atom_contacts(ATOM*,ATOM_TYPING_SCHEME*,FORCE_FIELD*);
 static int pliff_get_da_hbonds(CONTACTLIST*,int,int,CONTACT**,int*);
 static void pliff_permute_da_hbonds(CONTACT**,int,int,int,int*,int,int,double*,double*,double*);
@@ -64,19 +76,24 @@ static double pliff_score_da_permutation(CONTACT**,int,int*,double*);
 static double pliff_hbonds_triplet_score(CONTACT**,int,int*);
 static double pliff_triplet_score(double);
 static void pliff_contactlist2hbonds(CONTACTLIST*,CONTACT**,int*,double,double);
-static double pliff_score_vs_histogram(int,double,int);
 static ATOM_TYPE* pliff_qscore_get_atom_type(int,int,ATOM_TYPING_SCHEME*);
 static double pliff_init_contact_scale(CONTACT*,NONBONDED_FF*,HISTOGRAM*,HISTOGRAM*);
 
 
 
-void init_pliff_settings(void) {
+void pliff_init(void) {
+
+  pliff_sfunc = get_sfunc("pliff");
 
   pliff_zero_coeff = (params_get_parameter("pliff_zero_coeff"))->value.d;
   pliff_contact_coeff = (params_get_parameter("pliff_contact_coeff"))->value.d;
   pliff_geometry_coeff = (params_get_parameter("pliff_geometry_coeff"))->value.d;
 
   pliff_ignore_long_contacts = (params_get_parameter("pliff_ignore_long_contacts"))->value.i;
+
+  pliff_intra_torsion = (params_get_parameter("pliff_intra_torsion"))->value.i;
+  pliff_intra_clash = (params_get_parameter("pliff_intra_clash"))->value.i;
+  pliff_intra_vdw = (params_get_parameter("pliff_intra_vdw"))->value.i;
 }
 
 
@@ -154,8 +171,6 @@ void run_pliff_qscore(SETTINGS *settings) {
 
 	  score = area*(contact_score + geometry_score);
 
-	  printf("SCORE %10.4lf %10.4lf %10.4lf %10d\n",contact_score,geometry_score,score,key);
-
 	} else {
 
 	  warning_fn("qscore: atom type(s) undefined");
@@ -173,20 +188,65 @@ void run_pliff_qscore(SETTINGS *settings) {
 
 void pliff_minimise_system(SYSTEM *system) {
 
-  PLI_SFUNC *sfunc;
+  // TODO: look into alternative minimisation protocols:
 
-  sfunc = get_sfunc("pliff");
-
-  minimise(system,sfunc,-1);
+  minimise(system,pliff_sfunc,-1);
 }
 
 
 
-void pliff_score_system(SYSTEM *system) {
+double pliff_score_system(SYSTEM *system) {
 
-  int i,j,id1,id2,n_contacts;
+  double *scores;
+
+  if ((params_get_parameter("score_inter"))->value.i) {
+
+    pliff_score_inter_molecular(system);
+  }
+
+  if ((params_get_parameter("score_intra"))->value.i) {
+
+    pliff_score_intra_molecular(system);
+  }
+
+  scores = system->scores;
+
+  scores[PLIFF_SYSTEM_SCORE] = scores[PLIFF_SYSTEM_INTER_SCORE] + scores[PLIFF_SYSTEM_INTRA_SCORE];
+
+  system->score = scores[PLIFF_SYSTEM_SCORE];
+
+  return(system->score);
+}
+
+
+
+double pliff_score_gradient(DOF *variable,SYSTEM *system) {
+
+  double fd,score,scores[MAX_SYSTEM_SCORES];
+
+  score = system->score;
+
+  //memcpy(scores,system->scores,MAX_SYSTEM_SCORES*sizeof(double));
+
+  fd = numerical_score_gradient(variable,system,pliff_score_inter_molecular);
+  fd += pliff_score_intra_molecular_gradient(variable,system);
+
+  //memcpy(system->scores,scores,MAX_SYSTEM_SCORES*sizeof(double));
+
+  //system->score = scores[PLIFF_SYSTEM_SCORE];
+
+  system->score = score;
+
+  return(fd);
+}
+
+
+
+static double pliff_score_inter_molecular(SYSTEM *system) {
+
+  int i,j,id1,id2;
   unsigned int cflags;
-  double *scores,*cscores,p;
+  double score,*scores,*cscores;
   ATOM **atomp,*atom;
   ATOMLIST *selection;
   CONTACT *contact;
@@ -198,37 +258,30 @@ void pliff_score_system(SYSTEM *system) {
   settings = system->settings;
   scheme = settings->atom_typing_scheme;
   ff = settings->force_field;
+
   selection = system->selection;
 
   if (selection == NULL) {
 
-    return;
+    return(0.0);
   }
 
   // calculate (new) contacts:
 
-  if (pliff_recalc_contacts) {
-
-    set_contacts_system(system,0);
-  }
+  set_contacts_system(system,0);
 
   // calculate (new) geometries and scores:
 
-  pliff_score_contacts(selection,scheme,ff);
+  pliff_score_contacts(system,scheme,ff);
 
-  pliff_scale_contacts(selection,scheme,ff);
+  pliff_scale_contacts(system,scheme,ff);
 
-  pliff_score_atoms(selection);
+  pliff_score_atoms(system);
 
   // add up the scores:
-
   init_system_scores(system);
-
   scores = system->scores;
-
-  p = 1.0;
-
-  n_contacts = 0;
+  score = 0.0;
 
   for (i=0,atomp=selection->atom;i<selection->natoms;i++,atomp++) {
   
@@ -255,50 +308,143 @@ void pliff_score_system(SYSTEM *system) {
 	      cscores = contact->scores;
 	      scores[PLIFF_SYSTEM_CONTACT_SCORE] += (cscores[PLIFF_CONTACT_SCALE]*cscores[PLIFF_CONTACT_SCORE]);
 	      scores[PLIFF_SYSTEM_GEOMETRY_SCORE] += (cscores[PLIFF_CONTACT_SCALE]*cscores[PLIFF_GEOMETRY_SCORE]);
-
-	      n_contacts++;
+	      score += cscores[PLIFF_CONTACT_SCALE]*(contact->score);
 	    }
 	  }
 	}
       }
-
       scores[PLIFF_SYSTEM_TRIPLET_SCORE] += atom->scores[PLIFF_ATOM_TRIPLET_SCORE];
-
-      p *= atom->type_probability;
+      score += atom->scores[PLIFF_ATOM_TRIPLET_SCORE];
     }
   }
 
-  // this is a bit of a hack - molsystems won't have a ligand, so won't get scored here
-  // the idea being that a ligand in isolation can adopt a conformation with zero
-  // clashes and torsional issues. this will need to be addressed at some point, because:
-  // (1) the assumption won't always hold true and (2) it won't allow us to minimise a
-  // ligand molecule in isolation
+  scores = system->scores;
 
-  if (system->ligand) {
-
-    scores[PLIFF_SYSTEM_LIGAND_SCORE] = molecule_internal_energy(system->ligand,scheme,ff);
-  }
-
-  //scores[PLIFF_SYSTEM_TC_SCORE] = -0.5925*log(p);
-
+  scores[PLIFF_SYSTEM_INTER_SCORE] = score;
+  
   scores[PLIFF_SYSTEM_GEOMETRY_SCORE] += scores[PLIFF_SYSTEM_TRIPLET_SCORE];
 
-  scores[PLIFF_SYSTEM_NB_SCORE] = scores[PLIFF_SYSTEM_CONTACT_SCORE] + scores[PLIFF_SYSTEM_GEOMETRY_SCORE];
+  system->score = score;
 
-  scores[PLIFF_SYSTEM_SCORE] = scores[PLIFF_SYSTEM_CONTACT_SCORE] + scores[PLIFF_SYSTEM_GEOMETRY_SCORE] + scores[PLIFF_SYSTEM_RB_SCORE] + scores[PLIFF_SYSTEM_LIGAND_SCORE];
-
-  system->score = scores[PLIFF_SYSTEM_SCORE];
+  return(score);
 }
 
 
 
-static void pliff_score_contacts(ATOMLIST *selection,ATOM_TYPING_SCHEME *scheme,FORCE_FIELD *ff) {
+static double pliff_score_intra_molecular(SYSTEM *system) {
+
+  double *scores;
+
+  scores = system->scores;
+
+  scores[PLIFF_SYSTEM_INTRA_SCORE] = pliff_score_intra_covalent(system) + pliff_score_intra_torsion(system) + pliff_score_intra_vdw(system);
+
+  system->score = scores[PLIFF_SYSTEM_INTRA_SCORE];
+
+  return(system->score);
+}
+
+
+
+double pliff_score_intra_covalent(SYSTEM *system) {
+
+  int i;
+  double score;
+  MOLECULE **moleculep,*molecule;
+
+  score = 0.0;
+
+  if ((system->dof & DOF_LIGAND_ATOMS) || (system->dof & DOF_LIGAND_MATCHED_ATOMS)) {
+
+    for (i=0,moleculep=system->molecule_list->molecules;i<system->molecule_list->n_molecules;i++,moleculep++) {
+
+      molecule = *moleculep;
+
+      if (molecule->flags & LIGAND_MOLECULE) {
+
+	score += molecule_bond_energy(molecule);
+	score += molecule_bond_angle_energy(molecule);    
+      }
+    }
+  }
+
+  system->score = score;
+
+  return(score);
+}
+
+
+
+static double pliff_score_intra_torsion(SYSTEM *system) {
+
+  int i;
+  double score;
+  MOLECULE **molecule;
+
+  score = 0.0;
+
+  if ((pliff_intra_torsion) && ((system->dof & DOF_LIGAND_TORSIONS) || (system->dof & DOF_LIGAND_ATOMS) || (system->dof & DOF_LIGAND_MATCHED_ATOMS))) {
+
+    for (i=0,molecule=system->molecule_list->molecules;i<system->molecule_list->n_molecules;i++,molecule++) {
+
+      score += molecule_torsion_energy(*molecule);
+    }
+  }
+
+  system->score = score;
+
+  return(score);
+}
+
+
+
+static double pliff_score_intra_vdw(SYSTEM *system) {
+
+  int i,intra_vdw;
+  double score;
+  MOLECULE **molecule;
+  SETTINGS *settings;
+  ATOM_TYPING_SCHEME *scheme;
+  FORCE_FIELD *ff;
+
+  settings = get_settings();
+  scheme = settings->atom_typing_scheme;
+  ff = settings->force_field;
+
+  score = 0.0;
+
+  if ((pliff_intra_clash) && ((system->dof & DOF_LIGAND_TORSIONS) || (system->dof & DOF_LIGAND_ATOMS) || (system->dof & DOF_LIGAND_MATCHED_ATOMS))) {
+
+    for (i=0,molecule=system->molecule_list->molecules;i<system->molecule_list->n_molecules;i++,molecule++) {
+
+      score += molecule_vdw_energy(*molecule,scheme,ff,pliff_intra_vdw);
+    }
+  }
+
+  system->score = score;
+
+  return(score);
+}
+
+
+
+static double pliff_score_intra_molecular_gradient(DOF *variable,SYSTEM *system) {
+
+  return(numerical_score_gradient(variable,system,pliff_score_intra_molecular));
+}
+
+
+
+static void pliff_score_contacts(SYSTEM *system,ATOM_TYPING_SCHEME *scheme,FORCE_FIELD *ff) {
 
   int i,j,id1,id2;
   unsigned int flags1,flags2,status1,status2,cflags;
   ATOM **atomp1,*atom1,*atom2;
   CONTACT *contact,*icontact;
   CONTACTLIST *contactlist;
+  ATOMLIST *selection;
+
+  selection = system->selection;
 
   for (i=0,atomp1=selection->atom;i<selection->natoms;i++,atomp1++) {
   
@@ -321,7 +467,7 @@ static void pliff_score_contacts(ATOMLIST *selection,ATOM_TYPING_SCHEME *scheme,
 	flags2 = atom2->flags;
 	status2 = atom2->status;
 
-	if ((!(cflags & COVALENT_CONTACT)) && (!(cflags & SECONDARY_CONTACT)) && ((!(cflags & INTRAMOLECULAR_CONTACT)) || (hbond_flags_match(flags1,flags2)))) {
+	if ((!(cflags & COVALENT_CONTACT)) && (!(cflags & SECONDARY_CONTACT)) && ((!(cflags & INTRAMOLECULAR_CONTACT)) || (hbond_flags_match(flags1,flags2,1)))) {
 
 	  if ((id2 > id1) || (!atom_in_list(selection,atom2))) {
 
@@ -349,14 +495,17 @@ static void pliff_score_contacts(ATOMLIST *selection,ATOM_TYPING_SCHEME *scheme,
 
 
 
-static void pliff_score_atoms(ATOMLIST *selection) {
+static void pliff_score_atoms(SYSTEM *system) {
 
   int i,j;
   unsigned int cflags;
   double *scores,*cscores;
   ATOM **atomp,*atom;
+  ATOMLIST *selection;
   CONTACT *contact;
   CONTACTLIST *contactlist;
+
+  selection = system->selection;
 
   for (i=0,atomp=selection->atom;i<selection->natoms;i++,atomp++) {
   
@@ -404,7 +553,7 @@ static void pliff_score_atoms(ATOMLIST *selection) {
 
 
 
-static void pliff_scale_contacts(ATOMLIST *selection,ATOM_TYPING_SCHEME *scheme,FORCE_FIELD *ff) {
+static void pliff_scale_contacts(SYSTEM *system,ATOM_TYPING_SCHEME *scheme,FORCE_FIELD *ff) {
 
   int i,j;
   ATOM **atomp,*atom;
@@ -413,6 +562,9 @@ static void pliff_scale_contacts(ATOMLIST *selection,ATOM_TYPING_SCHEME *scheme,
   CONTACT *contact;
   NONBONDED_FF *nonbonded_ff;
   HISTOGRAM *hist_ALPHA1,*hist_ALPHA2;
+  ATOMLIST *selection;
+
+  selection = system->selection;
 
   for (i=0,atomp=selection->atom;i<selection->natoms;i++,atomp++) {
   
@@ -448,35 +600,39 @@ static void pliff_scale_contacts(ATOMLIST *selection,ATOM_TYPING_SCHEME *scheme,
 
 
 
-void pliff_write_system_scores(PLI_FILE *file,SYSTEM *system,enum OUTPUT_FORMAT oformat,unsigned long int oflags) {
+void pliff_write_system_scores(PLI_FILE *file,SYSTEM *system) {
 
+  char *oformat;
   double *s,*r;
 
   s = system->scores;
   r = system->ref_scores;
 
-  write_line(file,(oformat == JSON) ? 
-	     "\"pliff_score\":%lf,\"pliff_nb_score\":%lf,\"pliff_cscore\":%lf,\"pliff_gscore\":%lf,\"pliff_tscore\":%lf,\"pliff_iscore\":%lf" : 
+  oformat = (params_get_parameter("oformat"))->value.s;
+  write_line(file,(!strcmp(oformat,"json")) ?
+             "\"pliff_score\":%lf,\"pliff_nb_score\":%lf,\"pliff_cscore\":%lf,\"pliff_gscore\":%lf,\"pliff_tscore\":%lf,\"pliff_iscore\":%lf" : 
 	     " %10.4lf %10.4lf %10.4lf %10.4lf %10.4lf %10.4lf",
 	     s[PLIFF_SYSTEM_SCORE]-r[PLIFF_SYSTEM_SCORE],
-             s[PLIFF_SYSTEM_NB_SCORE]-r[PLIFF_SYSTEM_NB_SCORE],
+             s[PLIFF_SYSTEM_INTER_SCORE]-r[PLIFF_SYSTEM_INTER_SCORE],
 	     s[PLIFF_SYSTEM_CONTACT_SCORE]-r[PLIFF_SYSTEM_CONTACT_SCORE],
 	     s[PLIFF_SYSTEM_GEOMETRY_SCORE]-r[PLIFF_SYSTEM_GEOMETRY_SCORE],
 	     s[PLIFF_SYSTEM_TRIPLET_SCORE]-r[PLIFF_SYSTEM_TRIPLET_SCORE],
-	     s[PLIFF_SYSTEM_LIGAND_SCORE]
-             );
+	     s[PLIFF_SYSTEM_INTRA_SCORE]-r[PLIFF_SYSTEM_INTRA_SCORE]);
 }
 
 
 
-void pliff_write_atom_scores(PLI_FILE *file,ATOM *atom,enum OUTPUT_FORMAT oformat,unsigned long int oflags) {
+void pliff_write_atom_scores(PLI_FILE *file,ATOM *atom) {
 
+  char *oformat;
   double *s,*r;
 
   s = atom->scores;
   r = atom->ref_scores;
 
-  write_line(file,(oformat == JSON) ? 
+  oformat = (params_get_parameter("oformat"))->value.s;
+
+  write_line(file,(!strcmp(oformat,"json")) ?
 	     "\"pliff_score\":%lf,\"pliff_cscore\":%lf,\"pliff_gscore\":%lf,\"pliff_tscore\":%lf,\"constraint_score\":%lf" : 
 	     " %10.4lf %10.4lf %10.4lf %10.4lf %10.4lf",
 	     s[PLIFF_ATOM_SCORE] - r[PLIFF_ATOM_SCORE],
@@ -488,13 +644,16 @@ void pliff_write_atom_scores(PLI_FILE *file,ATOM *atom,enum OUTPUT_FORMAT oforma
 
 
 
-void pliff_write_contact_scores(PLI_FILE *file,CONTACT *contact,enum OUTPUT_FORMAT oformat,unsigned long int oflags) {
+void pliff_write_contact_scores(PLI_FILE *file,CONTACT *contact) {
 
+  char *oformat;
   double *s;
 
   s = contact->scores;
 
-  write_line(file,(oformat == JSON) ? 
+  oformat = (params_get_parameter("oformat"))->value.s;
+
+  write_line(file,(!strcmp(oformat,"json")) ?
 	     "\"pliff_score\":%lf,\"pliff_cscore\":%lf,\"pliff_gscore\":%lf" : 
 	     " %10.4lf %10.4lf %10.4lf",
 	     contact->score,
@@ -507,7 +666,7 @@ void pliff_write_contact_scores(PLI_FILE *file,CONTACT *contact,enum OUTPUT_FORM
 void pliff_score_contact(CONTACT *contact,ATOM_TYPING_SCHEME *scheme,FORCE_FIELD *ff) {
 
   int within_limits1,within_limits2,i,j;
-  double D,A,f_r_alpha,f_r_beta,*scores,fg[MAX_CONTACT_SCORES];
+  double D,A,f_r_alpha,f_r_beta,*scores,fg[MAX_CONTACT_SCORES],lnP;
   ATOM *atom1,*atom2;
   ATOM_TYPE *type1,*type2;
   ATOM_GEOMETRY *geometry1,*geometry2;
@@ -570,9 +729,9 @@ void pliff_score_contact(CONTACT *contact,ATOM_TYPING_SCHEME *scheme,FORCE_FIELD
 
   // calculate R score:
 
-  if (((contact->distance < nonbonded_ff->Dc) && (nonbonded_ff->use_clash_potential)) || (D < hist_R->startX)) {
+  if (D < hist_R->startX) {
 
-    scores[PLIFF_R_SCORE] = lennard_jones_energy(contact->distance,nonbonded_ff->LJ_A,nonbonded_ff->LJ_B);
+    scores[PLIFF_R_SCORE] = -lennard_jones_energy(contact->distance,nonbonded_ff->Do,nonbonded_ff->Eo,nonbonded_ff->LJ_n);
 
   } else {
 
@@ -664,12 +823,23 @@ void pliff_score_contact(CONTACT *contact,ATOM_TYPING_SCHEME *scheme,FORCE_FIELD
 
   // calculate contact score:
 
-  scores[PLIFF_CONTACT_SCORE] = -pliff_contact_coeff*A*(nonbonded_ff->lnP);
+  //if (nonbonded_ff->lnP > 0.0) {
+
+    lnP = nonbonded_ff->lnP + atom1->lnPu + atom2->lnPu;
+
+    //} else {
+
+    //lnP = nonbonded_ff->lnP - atom1->lnPu - atom2->lnPu;
+    //}
+
+  scores[PLIFF_CONTACT_SCORE] = -pliff_contact_coeff*A*lnP;
 
   // for hydrogen-bonding contacts, also calculate hbond geometry score:
 
-  if (hbond_flags_match(type1->flags,type2->flags)) {
-
+  if (hbond_flags_match(type1->flags,type2->flags,1)) {
+    if ((! atom1->hbond_geometry) || (! atom2->hbond_geometry)){
+      warning_fn("%s: hydrogen bond geometry not found for one of the contacting atoms", __func__);
+    }
     scores[PLIFF_HBOND_GEOMETRY_SCORE] = hbond_geometry_score(contact);
   }
 
@@ -687,10 +857,10 @@ static void pliff_scale_atom_contacts(ATOM *atom,ATOM_TYPING_SCHEME *scheme,FORC
 
   int i,n_hs,n_lps,n_max,n_hbonds,hbonds_on[MAX_Z];
   unsigned int flags;
-  double score,*scores,Q,EtQ,Qhbs[MAX_Z],f;
+  double score,*scores,Q,EtQ,Qhbs[MAX_Z],f,dw1,dw2;
   ATOM_TYPE *type;
   CONTACTLIST *contactlist;
-  CONTACT **hbondp,*hbonds[MAX_Z],*hbond,*ihbond;
+  CONTACT **hbondp,*hbonds[MAX_Z],*hbond,*ihbond,*contact;
 
   type = atom->type;
   flags = type->flags;
@@ -750,7 +920,7 @@ static void pliff_scale_atom_contacts(ATOM *atom,ATOM_TYPING_SCHEME *scheme,FORC
 	}
       }
 
-    } else if (n_hbonds > 1) {
+    } else if (n_hbonds > 0) {
 
       scores[PLIFF_ATOM_TRIPLET_SCORE] = pliff_hbonds_triplet_score(hbonds,n_hbonds,NULL);
     }
@@ -758,6 +928,16 @@ static void pliff_scale_atom_contacts(ATOM *atom,ATOM_TYPING_SCHEME *scheme,FORC
   } else if (flags & METAL_ATOM_TYPE) {
 
     // need to do something with metals here to sort out Acc...Me...Acc angles and coordination numbers
+  }
+
+  // apply depth weight here:
+
+  for (i=0,contact=contactlist->contacts;i<contactlist->ncontacts;i++,contact++) {
+
+    dw1 = atom_depth_weight(contact->atom1);
+    dw2 = atom_depth_weight(contact->atom2);
+
+    contact->scores[PLIFF_CONTACT_SCALE] *= (dw1*dw2);
   }
 }
 
@@ -937,6 +1117,23 @@ static double pliff_hbonds_triplet_score(CONTACT **contacts,int n_contacts,int *
 
   pos0 = (*contacts)->atom1->position;
 
+
+  int n_hbonds = 0;
+  for (i=0,contactp1=contacts;i<n_contacts;i++,contactp1++) {
+    if ((!hbonds) || (hbonds[i])) {
+      n_hbonds++;
+      contact1 = *contactp1;
+    }
+  }
+
+  // A single hydrogen bond gets the score assuming an optimal angle
+  if (n_hbonds == 1) {
+    area1 = (pliff_use_areas) ? contact1->area + contact1->iarea : 1.0;
+    f1 = contact1->scores[PLIFF_HBOND_GEOMETRY_SCORE];
+    triplet_score += area1*f1*pliff_triplet_score(pliff_triplet_optimal_angle);
+    return(pliff_geometry_coeff*triplet_score);
+  }
+
   for (i=0,contactp1=contacts;i<n_contacts-1;i++,contactp1++) {
 
     if ((!hbonds) || (hbonds[i])) {
@@ -945,11 +1142,12 @@ static double pliff_hbonds_triplet_score(CONTACT **contacts,int n_contacts,int *
 
       area1 = (pliff_use_areas) ? contact1->area + contact1->iarea : 1.0;
 
+      f1 = contact1->scores[PLIFF_HBOND_GEOMETRY_SCORE];
+
       pos1 = contact1->atom2->position;
  
       calc_vector(pos0,pos1,v1);
 
-      f1 = contact1->scores[PLIFF_HBOND_GEOMETRY_SCORE];
 
       for (j=i+1,contactp2=contacts+i+1;j<n_contacts;j++,contactp2++) {
 	
@@ -967,7 +1165,7 @@ static double pliff_hbonds_triplet_score(CONTACT **contacts,int n_contacts,int *
 
 	  angle = vector_angle(v1,v2);
 
-	  triplet_score += 0.5*(area1+area2)*f1*f2*pliff_triplet_score(angle);
+	  triplet_score += (area1+area2)*f1*f2*pliff_triplet_score(angle)/(n_hbonds-1);
 	}
       }
     }
@@ -980,7 +1178,7 @@ static double pliff_hbonds_triplet_score(CONTACT **contacts,int n_contacts,int *
 
 static double pliff_triplet_score(double angle) {
 
-  return(sqr((105-angle)/40)-0.92);
+  return(sqr((pliff_triplet_optimal_angle-angle)/40)-0.92);
 }
 
 
@@ -994,7 +1192,7 @@ static void pliff_contactlist2hbonds(CONTACTLIST *list,CONTACT **hbonds,int *n_h
 
   for (i=0,contact=list->contacts;i<list->ncontacts;i++,contact++) {
 
-    if (hbond_flags_match(contact->atom1->type->flags,contact->atom2->type->flags)) { 
+    if (hbond_flags_match(contact->atom1->type->flags,contact->atom2->type->flags,1)) { 
 
       if ((contact->score < max_score) && (contact->scores[PLIFF_HBOND_GEOMETRY_SCORE] > min_geom_score)) {
 
@@ -1012,7 +1210,7 @@ static void pliff_contactlist2hbonds(CONTACTLIST *list,CONTACT **hbonds,int *n_h
 }
 
 
-static double pliff_score_vs_histogram(int histogram_id,double X,int within_limits) {
+double pliff_score_vs_histogram(int histogram_id,double X,int within_limits) {
 
   int i,bin;
   double X1,X2,Y1,Y2,Y;

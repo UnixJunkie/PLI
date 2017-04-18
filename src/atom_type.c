@@ -1,4 +1,4 @@
-// Copyright 2015 Astex Therapautics Ltd.
+// Copyright 2015 Astex Therapeutics Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -73,7 +73,6 @@ static void alloc_atom_node_defs(ATOM_TYPE_DEF*);
 
 void run_type(SETTINGS *settings) {
 
-  int i;
   ATOM **atom;
   ATOMLIST *selection;
   SYSTEM *system;
@@ -184,9 +183,9 @@ static void read_elements(PLI_FILE *paramfile,ATOM_TYPING_SCHEME *scheme) {
 
 	init_element(element);
 
-	n_read = sscanf(line,"%d \"%[^\"]\" %lf %lf %d",&(element->id),element->name,&(element->cov_radius),&(element->vdw_radius),&(element->flags));
+	n_read = sscanf(line,"%d \"%[^\"]\" %lf %lf %d %d %d",&(element->id),element->name,&(element->cov_radius),&(element->vdw_radius),&(element->flags),&(element->default_valence),&(element->n_lp));
 
-	if (n_read == 5) {
+	if (n_read == 7) {
 
 	  scheme->n_elements++;
 
@@ -257,10 +256,14 @@ static void read_atom_nodes(PLI_FILE *paramfile,ATOM_TYPING_SCHEME *scheme) {
 static void read_united_atoms(PLI_FILE *paramfile,ATOM_TYPING_SCHEME *scheme) {
 
   int flag,n_read;
+  char *vdw_radii;
+  double pli_radius,av_radius;
   char line[MAX_LINE_LEN],word[MAX_LINE_LEN];
   UNITED_ATOM *united_atom;
 
   strcpy(word,"");
+
+  vdw_radii = (params_get_parameter("vdw_radii"))->value.s;
 
   while ((!end_of_file(paramfile)) && (strcmp(word,"end_united_atoms"))) {
   
@@ -282,8 +285,10 @@ static void read_united_atoms(PLI_FILE *paramfile,ATOM_TYPING_SCHEME *scheme) {
 	n_read = sscanf(line,"%d \"%[^\"]\" \"%[^\"]\" %d %d %d %lf %lf %lf",
 			&(united_atom->id),united_atom->name,united_atom->atom_node_name,
 			&(united_atom->hybridisation),&(united_atom->n_hydrogens),
-			&(united_atom->formal_charge),&(united_atom->vdw_radius),
+			&(united_atom->formal_charge),&pli_radius,&av_radius,
 			&(united_atom->ideal_hbond_alpha),&(united_atom->ideal_hbond_beta));
+
+	united_atom->vdw_radius = (!strcmp(vdw_radii,"av")) ? av_radius : pli_radius;
 
 	if (n_read == 9) {
 
@@ -928,6 +933,18 @@ ELEMENT* get_element_by_id(int id,ATOM_TYPING_SCHEME *scheme) {
 
 
 
+ELEMENT* get_element_from_type(ATOM_TYPE *type) {
+
+  if (type->element) {
+
+    return(type->element);
+  }
+
+  return(type->united_atom->atom_node->element);
+}
+
+
+
 static void alloc_elements(ATOM_TYPING_SCHEME *scheme) {
 
   if (scheme->n_alloc_elements == 0) {
@@ -1235,7 +1252,7 @@ void atom_type_atom(ATOM *atom,ATOM_TYPING_SCHEME *scheme) {
   }
 
   atom->type = derive_atom_type(atom,scheme);
- 
+
   check_atom_type(atom,scheme);
 
   if ((atom->type != NULL) && (atom->type->flags & AROMATIC_ATOM_TYPE)) {
@@ -1373,6 +1390,9 @@ static void check_atom_type(ATOM *atom,ATOM_TYPING_SCHEME *scheme) {
   if ((molecule) && (molecule->use_hydrogens)) {
 
     check_atom_type_vs_hydrogens(atom,scheme);
+    if (atom->type && atom->n_hydrogens != atom->type->n_hs) {
+      warning_fn("Mismatch between number of hydrogens (%d) on the atom %s(%d) and the type (%d: %s) assigned\n", atom->n_hydrogens, atom->name, atom->id, atom->type->id, atom->type->name);
+    }
   }
 
   type = atom->type;
@@ -1604,7 +1624,7 @@ static ATOM_TYPE* derive_atom_type(ATOM *atom,ATOM_TYPING_SCHEME *scheme) {
   for (i=0,def=scheme->atom_type_defs;i<scheme->n_atom_type_defs;i++,def++) {
 
     if (atom_type_match(atom,def->defs)) {
-
+      
       return(def->type);
     }
   }
@@ -1694,7 +1714,11 @@ static ATOM_TYPE* ambiguous_aromatic_n(ATOM *atom,ATOM_TYPING_SCHEME *scheme) {
     }
   }
 
-  if ((n_carbon == 3) && (n_nitrogen == 2)) {
+  if ((n_carbon == 4) && (n_nitrogen == 1)) {
+
+    return(get_atom_type("Pyrrole N?",scheme));
+
+  } else if ((n_carbon == 3) && (n_nitrogen == 2)) {
 
     diff = posN[1] - posN[0];
 
@@ -1710,6 +1734,10 @@ static ATOM_TYPE* ambiguous_aromatic_n(ATOM *atom,ATOM_TYPING_SCHEME *scheme) {
   } else if ((n_carbon == 2) && (n_nitrogen == 3)) {
 
     return(get_atom_type("Triazole N?",scheme));
+
+  } else if ((n_carbon == 1) && (n_nitrogen == 4)) {
+
+    return(get_atom_type("Tetrazole N?",scheme));
   }
 
   return(NULL);
@@ -2212,11 +2240,11 @@ static int atom_type_match(ATOM *atom,ATOM_TYPE_DEF *def) {
 
     if ((atom->node == NULL) || (def->hybridisation != atom->node->hybridisation)) {
 
-      return(0);
+     return(0);
     }
   }
 
-  if (def->planar != -1) {
+  if (def->planar != UNDEFINED) {
 
     if (def->planar != planar_atom(atom)) {
 
@@ -2263,7 +2291,7 @@ static int atom_type_match(ATOM *atom,ATOM_TYPE_DEF *def) {
 	if (!atom_matched[j]) {
 
 	  if (atom_type_match(*batom,bdef)) {
-
+	
 	    atom_matched[j] = 1;
 
 	    def_matched = 1;
@@ -2449,6 +2477,11 @@ ATOM_TYPE* get_atom_type(char *name,ATOM_TYPING_SCHEME *scheme) {
   int i;
   ATOM_TYPE *type;
 
+  if (scheme == NULL) {
+
+    scheme = get_atom_typing_scheme();
+  }
+
   for (i=0,type=scheme->atom_types;i<scheme->n_atom_types;i++,type++) {
 
     if (!strcmp(type->name,name)) {
@@ -2478,6 +2511,22 @@ ATOM_TYPE* get_atom_type_by_id(int id,ATOM_TYPING_SCHEME *scheme) {
   return(NULL);
 }
 
+
+ATOM_TYPE* get_atom_type_by_element_id(int id,ATOM_TYPING_SCHEME *scheme) {
+
+  int i;
+  ATOM_TYPE *type;
+
+  for (i=0,type=scheme->atom_types;i<scheme->n_atom_types;i++,type++) {
+
+    if ((type->id == -1) && (type->element->id == id)) {
+
+      return(type);
+    }
+  }
+
+  return(NULL);
+}
 
 
 ALT_ATOM_TYPE *get_alt_type(ATOM_TYPE *type,char *name,int group_status) {

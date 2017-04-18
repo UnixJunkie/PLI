@@ -1,4 +1,4 @@
-// Copyright 2015 Astex Therapautics Ltd.
+// Copyright 2015 Astex Therapeutics Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,10 +18,10 @@
 
 
 
-void score_system_constraints(SYSTEM *system) {
+double score_system_constraints(SYSTEM *system) {
 
   int i;
-  double *tether_pos;
+  double score,*tether_pos;
   ATOM **atomp,*atom;
   ATOMLIST *selection;
 
@@ -29,10 +29,10 @@ void score_system_constraints(SYSTEM *system) {
 
   if (selection == NULL) {
 
-    return;
+    return(0.0);
   }
 
-  system->constraint_score = 0.0;
+  score = 0.0;
 
   // atom position tethers:
 
@@ -46,7 +46,7 @@ void score_system_constraints(SYSTEM *system) {
 
       atom->constraint_score = (atom->tether_k)*sqr_distance(atom->position,tether_pos);
 
-      system->constraint_score += atom->constraint_score;
+      score += atom->constraint_score;
 
     } else {
 
@@ -54,22 +54,113 @@ void score_system_constraints(SYSTEM *system) {
     }
   }
 
-  system->score += system->constraint_score;
+  system->constraint_score = score;
+
+  return(score);
 }
 
 
 
-void setup_list_atom_tethers(ATOMLIST *list,double tether_k) {
+double constraint_score_gradient(DOF *variable,SYSTEM *system) {
+
+  double fd;
+
+  fd = numerical_score_gradient(variable,system,score_system_constraints);
+
+  return(fd);
+}
+
+
+
+void prep_min_atom_tethers(SYSTEM *system) {
 
   int i;
-  ATOM **atomp,*atom;
+  double tether_k;
+  ATOM *atom;
+  MOLECULE *ligand;
 
-  for (i=0,atomp=list->atom;i<list->natoms;i++,atomp++) {
+  tether_k = (params_get_parameter("min_tether_k"))->value.d;
+
+  // TODO: probably need to change this for unrestrained 'docking'
+
+  ligand = system->ligand;
   
-    atom = *atomp;
+  if (ligand) {
+    
+    for (i=0,atom=ligand->atom;i<ligand->natoms;i++,atom++) {
+      
+      atom->tether_position = atom->original_position;
+      
+      atom->tether_k = tether_k;
+    }
+  }
+}
 
-    atom->tether_position = atom->original_position;
 
-    atom->tether_k = tether_k;
+
+void unprep_min_atom_tethers(SYSTEM *system) {
+
+  int i;
+  ATOM *atom;
+  MOLECULE *ligand;
+
+  // TODO: probably need to change this for unrestrained 'docking'
+
+  ligand = system->ligand;
+  
+  if (ligand) {
+    
+    for (i=0,atom=ligand->atom;i<ligand->natoms;i++,atom++) {
+      
+      atom->tether_position = NULL;
+    }
+  }
+}
+
+
+
+void prep_template_atom_tethers(SYSTEM *system) {
+
+  int i;
+  double tether_k;
+  ATOM *atom1,*atom2;
+  MATCH *match;
+
+  match = system->template_match;
+
+  if (match) {
+
+    tether_k = (params_get_parameter("min_tether_k"))->value.d;
+
+    for (i=0;i<match->n_atoms;i++) {
+
+      atom1 = match->atoms1[i];
+      atom2 = match->atoms2[i];
+
+      atom2->tether_position = atom1->position;
+
+      atom2->tether_k = tether_k;
+    }
+  }
+}
+
+
+
+void unprep_template_atom_tethers(SYSTEM *system) {
+
+  int i;
+  ATOM *atom;
+  MATCH *match;
+
+  match = system->template_match;
+
+  if (match) {
+
+    for (i=0;i<match->n_atoms;i++) {
+
+      atom = match->atoms2[i];
+
+      atom->tether_position = NULL;
+    }
   }
 }

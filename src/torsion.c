@@ -1,4 +1,4 @@
-// Copyright 2015 Astex Therapautics Ltd.
+// Copyright 2015 Astex Therapeutics Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,21 +16,30 @@
 
 #include "pli.h"
 
-static TORSION_TYPE torsion_types[] = { { "sp3-sp3 bond", 3, 3, 0.18750, 3.0, 3.1415936 },
-					{ "sp2-sp3 bond", 3, 2, 0.09375, 6.0, 0.0 },
-					{ "sp2-sp2 bond", 2, 2, 0.18750, 2.0, 0.0 },
-					{ "unknown bond",-1,-1, 0.00000, 0.0, 0.0 } };
+static TORSION_TYPE chemscore_torsion_types[] = { { "sp3-sp3 bond", 0, 1, 3, 3, 0.18750, 3.0, 3.1415936, 1 },
+						  { "sp2-sp3 bond", 0, 1, 3, 2, 0.09375, 6.0, 0.0000000, 1 },
+						  { "sp2-sp2 bond", 0, 1, 2, 2, 0.18750, 2.0, 0.0000000, 1 },
+						  { "unknown bond", 0, 1,-1,-1, 0.00000, 0.0, 0.0000000, 1 } };
+
+
+// new torsion terms to reflect the fact we're using united atoms here
+// should make this a lot more sophisticated!
+
+static TORSION_TYPE pliff_torsion_types[] = { { "sp3-sp3 bond", 1, 0, 3, 3, 0.40000, 3.0, 3.1415936, 1 },
+					      { "sp2-sp3 bond", 1, 0, 3, 2, 0.13000, 6.0, 0.0000000, 2 },
+					      { "sp2-sp2 bond", 1, 0, 2, 2, 0.18000, 2.0, 0.0000000, 1 },
+					      { "unknown bond", 1, 0,-1,-1, 0.00000, 0.0, 0.0000000, 1 } };
 
 
 
 static void set_bond_torsion(BOND*,RING_LIST*,MOLECULE*);
-static void set_torsion_rotlist(TORSION*);
 static int ring_bond(BOND*,RING_LIST*);
 static TORSION_TYPE* get_torsion_type(ATOM*,ATOM*);
 static void init_molecule_torsions(MOLECULE*);
 static void free_molecule_torsions(MOLECULE*);
 static void init_torsion(TORSION*);
 static void free_torsion(TORSION*);
+static int has_other_hybridization(ATOMLIST*, int);
 
 
 
@@ -59,10 +68,67 @@ void set_molecule_torsions(MOLECULE *molecule) {
 
 
 
+TORSION* get_molecule_torsion(MOLECULE *molecule,ATOM *atom1,ATOM *atom2) {
+
+  int i;
+  TORSION *torsion;
+
+  for (i=0,torsion=molecule->torsions;i<molecule->n_torsions;i++,torsion++) {
+
+    if (((torsion->atom1 == atom1) && (torsion->atom2 == atom2)) ||
+	((torsion->atom2 == atom1) && (torsion->atom1 == atom2))) {
+
+      return(torsion);
+    }
+  }
+
+  return(NULL);
+}
+
+
+
+void set_torsion_angle(TORSION *torsion,double angle) {
+
+  rotate_torsion(torsion,angle - torsion->angle);
+}
+
+
+
+void rotate_torsion(TORSION *torsion,double angle) {
+
+  int i;
+  double rm[4][4];
+  ATOM **atom;
+  ATOMLIST *rotlist;
+
+  rotation_matrix(torsion->atom1->position,torsion->atom2->position,angle,rm);
+
+  rotlist = torsion->rotlist;
+
+  for (i=0,atom=rotlist->atom;i<rotlist->natoms;i++,atom++) {
+    
+    transform_atom(*atom,rm);
+  }
+
+  calc_torsion_angle(torsion);
+}
+
+
+
+void calc_torsion_angle(TORSION *torsion) {
+
+  torsion->angle = dihedral_angle(torsion->batom1->position,
+				  torsion->atom1->position,
+				  torsion->atom2->position,
+				  torsion->batom2->position);
+}
+
+
+
 static void set_bond_torsion(BOND *bond,RING_LIST *ring_list,MOLECULE *molecule) {
 
   int i;
-  ATOM *atom1,*atom2,**batomp,*batom;
+  ATOM *atom1,*atom2,**batomp,*batom,**batoms1,**batoms2;
   ATOMLIST *list1,*list2;
   TORSION *torsion;
 
@@ -73,8 +139,10 @@ static void set_bond_torsion(BOND *bond,RING_LIST *ring_list,MOLECULE *molecule)
     return;
   }
 
+
   atom1 = bond->atom1;
   atom2 = bond->atom2;
+
 
   list1 = alloc_atomlist();
   list2 = alloc_atomlist();
@@ -90,12 +158,20 @@ static void set_bond_torsion(BOND *bond,RING_LIST *ring_list,MOLECULE *molecule)
   get_connected_atoms(list1,atom1,atom2,0,0,molecule->natoms);
   get_connected_atoms(list2,atom2,atom1,0,0,molecule->natoms);
 
-  if ((list1->natoms < 2) || (list2->natoms < 2)) {
+  if ((list1->natoms < 2) || (list2->natoms < 2) || (!has_other_hybridization(list1, 1)) || (!has_other_hybridization(list2, 1))) {
 
     free_atomlist(list1);
     free_atomlist(list2);
 
     return;  
+  }
+
+  TORSION_TYPE *torsion_type = get_torsion_type(atom1, atom2);
+  if (!torsion_type) {
+    warning_fn("Torsion type can not be defined for the bond between atoms %d and %d in molecule %s", atom1->id, atom2->id, atom1->molecule->name);
+    free_atomlist(list1);
+    free_atomlist(list2);
+    return;
   }
 
   torsion = molecule->torsions + molecule->n_torsions;
@@ -104,9 +180,10 @@ static void set_bond_torsion(BOND *bond,RING_LIST *ring_list,MOLECULE *molecule)
 
   torsion->bond = bond;
 
-  torsion->type = get_torsion_type(atom1,atom2);
+  torsion->type = torsion_type;
 
-  if (list1->natoms < list2->natoms) {
+
+  if (list1->natoms > list2->natoms) {
 
     torsion->atom1 = atom1;
     torsion->atom2 = atom2;
@@ -123,49 +200,36 @@ static void set_bond_torsion(BOND *bond,RING_LIST *ring_list,MOLECULE *molecule)
     torsion->alist2 = list1;
   }
 
-  bond->torsion = torsion;
+  torsion->rotlist = torsion->alist2;
 
-  set_torsion_rotlist(torsion);
+  batoms1 = torsion->atom1->connections->atom;
+  batoms2 = torsion->atom2->connections->atom;
+
+  torsion->batom1 = (batoms1[0] != torsion->atom2) ? batoms1[0] : batoms1[1];
+  torsion->batom2 = (batoms2[0] != torsion->atom1) ? batoms2[0] : batoms2[1];
+
+  calc_torsion_angle(torsion);
+
+  bond->torsion = torsion;
 
   molecule->n_torsions++;
 }
 
 
+static int has_other_hybridization(ATOMLIST *list, int this) {
+  ATOM *atom;
+  for (int i=0; i<list->natoms; i++) {
+    atom = list->atom[i];
+    if ((atom->type == NULL) || (atom->type->united_atom == NULL)) {
+      return 1;
+    }
 
-static void set_torsion_rotlist(TORSION *torsion) {
-
-  int i;
-  ATOMLIST *list,*alist;
-  ATOM **atomp,*atom,*atom1,*atom2;
-
-  list = alloc_atomlist();
-
-  if (list == NULL) {
-
-    error_fn("set_torsion_rotlist: out of memory allocating list");
-  }
-
-  init_atomlist(list);
-
-  alist = torsion->alist1;
-
-  atom1 = torsion->bond->atom1;
-  atom2 = torsion->bond->atom2;
-
-  for (i=0,atomp=alist->atom;i<alist->natoms;i++,atomp++) {
-
-    atom = *atomp;
-
-    if ((atom != atom1) && (atom != atom2)) {
-
-      add_atom_to_list(list,atom,0);
+    if (atom->type->united_atom->hybridisation != this) {
+      return 1;
     }
   }
-
-  torsion->rotlist = list;
+  return 0;
 }
-
-
 
 static int ring_bond(BOND *bond,RING_LIST *ring_list) {
 
@@ -206,9 +270,12 @@ static int ring_bond(BOND *bond,RING_LIST *ring_list) {
 static TORSION_TYPE* get_torsion_type(ATOM *atom1,ATOM *atom2) {
 
   int hyb1,hyb2;
+  char *scheme;
   ATOM_TYPE *type1,*type2;
   UNITED_ATOM *uatom1,*uatom2;
   TORSION_TYPE *type;
+
+  scheme = (params_get_parameter("torsion_scheme"))->value.s;
 
   type1 = atom1->type;
   type2 = atom2->type;
@@ -229,14 +296,17 @@ static TORSION_TYPE* get_torsion_type(ATOM *atom1,ATOM *atom2) {
   hyb1 = uatom1->hybridisation;
   hyb2 = uatom2->hybridisation;
 
-  type = torsion_types;
+  type = (!strcmp(scheme,"pliff")) ? pliff_torsion_types : chemscore_torsion_types;
 
-  while (strcmp(type->name,"unknown bond")) {
+  while ((strcmp(type->name,"unknown bond"))) {
 
-    if (((type->hyb1 == hyb1) && (type->hyb2 == hyb2)) ||
-	((type->hyb1 == hyb2) && (type->hyb2 == hyb1))) {
+    if (type->n_terms != 0) {
 
-      return(type);
+      if (((type->hyb1 == hyb1) && (type->hyb2 == hyb2)) ||
+	  ((type->hyb1 == hyb2) && (type->hyb2 == hyb1))) {
+
+	return(type);
+      }
     }
 
     type++;
@@ -289,6 +359,10 @@ static void free_molecule_torsions(MOLECULE *molecule) {
 
 static void init_torsion(TORSION *torsion) {
 
+  torsion->atom1 = NULL;
+  torsion->atom2 = NULL;
+  torsion->batom1 = NULL;
+  torsion->batom2 = NULL;
   torsion->bond = NULL;
   torsion->alist1 = NULL;
   torsion->alist2 = NULL;

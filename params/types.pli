@@ -5,62 +5,64 @@
 # 3. covalent radius
 # 4. van-der-waals radius (not sure this is used)
 # 5. flag for metals
+# 6. default valence (used for aromaticity perception)
+# 7. number of lone pairs of electrons (used for aromaticity perception)
 
 elements
-    1   "H"       0.23     1.09          0
-    2   "HE"      1.50     1.40          0
-    3   "LI"      1.27     1.80          1
-    4   "BE"      0.96     1.40          0
-    5   "B"       0.90     1.70          0
-    6   "C"       0.76     1.78          0
-    7   "N"       0.69     1.65          0
-    8   "O"       0.65     1.40          0
-    9   "F"       0.56     1.38          0
-   10   "NE"      0.70     1.80          0
-   11   "NA"      1.70     1.80          1
-   12   "MG"      1.41     1.80          1
-   13   "AL"      1.20     1.80          1
-   14   "SI"      1.11     2.10          0
-   15   "P"       1.07     1.97          0
-   16   "S"       1.01     1.78          0
-   17   "CL"      0.98     1.65          0
-   18   "AR"      0.70     1.80          0
-   19   "K"       2.17     1.80          1
-   20   "CA"      1.73     1.80          1
-   21   "SC"      1.38     1.80          1
-   22   "TI"      1.38     1.80          1
-   23   "V"       1.38     1.80          1
-   24   "CR"      1.30     1.80          1
-   25   "MN"      1.38     1.80          1
-   26   "FE"      1.35     1.80          1
-   27   "CO"      1.42     1.80          1
-   28   "NI"      1.38     1.80          1
-   29   "CU"      1.32     1.80          1
-   30   "ZN"      1.30     1.80          1
-   31   "GA"      1.38     1.80          1
-   32   "GE"      1.38     1.80          1
-   33   "AS"      1.38     1.80          0
-   34   "SE"      1.16     1.80          0
-   35   "BR"      1.15     1.84          0
-   36   "KR"      0.70     1.80          0
-   37   "RB"      1.38     1.80          1
-   38   "SR"      1.38     1.80          1
-   39   "Y"       1.38     1.80          1
-   40   "ZR"      1.38     1.80          1
-   42   "MO"      1.38     1.80          1
-   48   "CD"      1.38     1.80          1
-   53   "I"       1.34     1.93          0
-   55   "CS"      1.38     1.80          1
-   56   "BA"      1.38     1.80          1
-   63   "EU"      1.38     1.80          1
-   70   "YB"      1.38     1.80          1
-   74   "W"       1.38     1.80          1
-   78   "PT"      1.38     1.80          1
-   79   "AU"      1.38     1.80          1
-   80   "HG"      1.38     1.80          1
-   81   "TL"      1.38     1.80          1
-   82   "PB"      1.38     1.80          1
-   92   "U"       1.38     1.80          1
+    1   "H"       0.23     1.09          0      1     -1
+    2   "HE"      1.50     1.40          0      0     -1
+    3   "LI"      1.27     1.80          1      1     -1
+    4   "BE"      0.96     1.40          0      2     -1
+    5   "B"       0.90     1.70          0      3     -1
+    6   "C"       0.76     1.78          0      4     -1
+    7   "N"       0.69     1.65          0      3      1
+    8   "O"       0.65     1.40          0      2      3
+    9   "F"       0.56     1.38          0      1     -1
+   10   "NE"      0.70     1.80          0      0     -1
+   11   "NA"      1.70     1.80          1      1     -1
+   12   "MG"      1.41     1.80          1      2     -1
+   13   "AL"      1.20     1.80          1      6     -1
+   14   "SI"      1.11     2.10          0      4     -1
+   15   "P"       1.07     1.97          0      3     -1
+   16   "S"       1.01     1.78          0      2      2
+   17   "CL"      0.98     1.65          0      1     -1
+   18   "AR"      0.70     1.80          0      0     -1
+   19   "K"       2.17     1.80          1      1     -1
+   20   "CA"      1.73     1.80          1      2     -1
+   21   "SC"      1.38     1.80          1     -1     -1
+   22   "TI"      1.38     1.80          1     -1     -1
+   23   "V"       1.38     1.80          1     -1     -1
+   24   "CR"      1.30     1.80          1     -1     -1
+   25   "MN"      1.38     1.80          1     -1     -1
+   26   "FE"      1.35     1.80          1     -1     -1
+   27   "CO"      1.42     1.80          1     -1     -1
+   28   "NI"      1.38     1.80          1     -1     -1
+   29   "CU"      1.32     1.80          1     -1     -1
+   30   "ZN"      1.30     1.80          1     -1     -1
+   31   "GA"      1.38     1.80          1      3     -1
+   32   "GE"      1.38     1.80          1      4     -1
+   33   "AS"      1.38     1.80          0      3     -1
+   34   "SE"      1.16     1.80          0      2     -1
+   35   "BR"      1.15     1.84          0      1     -1
+   36   "KR"      0.70     1.80          0      0     -1
+   37   "RB"      1.38     1.80          1      1     -1
+   38   "SR"      1.38     1.80          1      2     -1
+   39   "Y"       1.38     1.80          1     -1     -1
+   40   "ZR"      1.38     1.80          1     -1     -1
+   42   "MO"      1.38     1.80          1     -1     -1
+   48   "CD"      1.38     1.80          1     -1     -1
+   53   "I"       1.34     1.93          0      1     -1
+   55   "CS"      1.38     1.80          1      1     -1
+   56   "BA"      1.38     1.80          1      2     -1
+   63   "EU"      1.38     1.80          1     -1     -1
+   70   "YB"      1.38     1.80          1     -1     -1
+   74   "W"       1.38     1.80          1     -1     -1
+   78   "PT"      1.38     1.80          1     -1     -1
+   79   "AU"      1.38     1.80          1     -1     -1
+   80   "HG"      1.38     1.80          1     -1     -1
+   81   "TL"      1.38     1.80          1      3     -1
+   82   "PB"      1.38     1.80          1      4     -1
+   92   "U"       1.38     1.80          1     -1     -1
 end_elements
 
 
@@ -117,12 +119,13 @@ atom_nodes
    38   "-S"       "S"       1     0     0         -1     0
    39   ">S"       "S"       2     0     0         -1     0
    40   ">S-"      "S"       3     0     0         -1     0
-   41   ">S<"      "S"       2     2     0         -1     0
+   41   ">>S<"     "S"       2     2     0         -1     0
    42   "=S"       "S"       0     1     0          2     0
    43   "=S<"      "S"       2     1     0          2     0
    44   "-CL"      "CL"      1     0     0         -1     0
    45   "-BR"      "BR"      1     0     0         -1     0
    46   "-I"       "I"       1     0     0         -1     0
+   47   ">S<"      "S"       3     1     0         -1     0
 end_atom_nodes
 
 
@@ -136,59 +139,66 @@ end_atom_nodes
 # 5. number of hydrogens (-1 for unspecified)
 # 6. formal charge
 # 7. van der waals radius
-# 8. ideal h-bond alpha (-1 for unspecified)
-# 9. ideal h-bond beta (-1 for unspecified)
+# 8. AstexViewer vdw radius (from Tsai et al?)
+# 9. ideal h-bond alpha (-1 for unspecified)
+# 10. ideal h-bond beta (-1 for unspecified)
 
 united_atoms
-    1   "-CH3"     "-C"         3     3     0     1.81    -1     -1
-    2   ">CH2"     ">C"         3     2     0     1.81    -1     -1
-    3   ">CH-"     ">C-"        3     1     0     1.81    -1     -1
-    4   ">C<"      ">C<"        3     0     0     1.81    -1     -1
-    5   "=CH2"     "=C"         2     2     0     1.74    -1     -1
-    6   "=CH-"     "=C-"        2     1     0     1.74     0     -1
-    7   "=C<"      "=C<"        2     0     0     1.74    -1     -1
-    8   "#CH"      "#C"         1     1     0     1.66    -1     -1
-    9   "#C"       "#C"         1     0    -1     1.66    -1     -1
-   10   "#C-"      "#C-"        1     0     0     1.66    -1     -1
-   11   "=C="      "=C="        1     0     0     1.66    -1     -1
-   12   "-N?"      "-N"         3    -1     0     1.66    60     -1
-   13   "-NH3"     "-N"         3     3     1     1.66    60     -1
-   14   "-NH2"     "-N"         3     2     0     1.66    60     -1
-   15   "-NH2p"    "-N"         2     2     0     1.62    60     90
-   16   ">NH2"     ">N"         3     2     1     1.66    60      0
-   17   ">NH"      ">N"         3     1     0     1.66    60      0
-   18   ">NHp"     ">N"         2     1     0     1.62     0     -1
-   19   ">N?p"     ">N"         2    -1     0     1.62     0     -1
-   20   ">NH-"     ">N-"        3     1     1     1.66     0     -1
-   21   ">N-"      ">N-"        3     0     0     1.66     0     -1
-   22   ">Np-"     ">N-"        2     0     0     1.62    -1     -1
-   23   ">N<"      ">N<"        3     0     1     1.66    -1     -1
-   24   "=NH"      "=N"         2     1     0     1.62    60     -1
-   25   "=NH2"     "=N"         2     2     1     1.62    60     90
-   26   "=N-"      "=N-"        2     0     0     1.62     0     -1
-   27   "=NH-"     "=N-"        2     1     1     1.62     0     -1
-   28   "=N<"      "=N<"        2     1     1     1.62    -1     -1
-   29   ">>N-"     ">>N-"       2     0     1     1.62    -1     -1
-   30   "#N"       "#N"         1     0     0     1.50     0     -1
-   31   "#N-"      "#N-"        1     0     1     1.50    -1     -1
-   32   "=N="      "=N="        1     0     1     1.50    -1     -1
-   33   "H2O"      "O"          3     2     0     1.40    -1     -1
-   34   "-OH"      "-O"         3     1     0     1.40    60     -1
-   35   "-OHp"     "-O"         3     1     0     1.40    60     90
-   36   "-O"       "-O"         3     0    -1     1.40    -1     -1
-   37   "=O"       "=O"         2     0     0     1.40    60     90
-   38   "~O?"      "=O"         2    -1     0     1.40    60     90
-   39   ">O"       ">O"         3     0     0     1.40    60      0
-   40   "S"        "S"          3     0     0     1.68    -1     -1
-   41   "-SH"      "-S"         3     1     0     1.68    -1     -1
-   42   "-S"       "-S"         3     0    -1     1.68     0     -1
-   43   ">S"       ">S"         3     0     0     1.78    -1     -1
-   44   ">S<"      ">S<"        3     0     0     1.78    -1     -1
-   45   ">P<"      ">P<"        3     0     0     1.97    -1     -1
-   46   "-F"       "-F"         3     0     0     1.38    -1     -1
-   47   "-CL"      "-CL"        3     0     0     1.65    -1     -1
-   48   "-BR"      "-BR"        3     0     0     1.84    -1     -1
-   49   "-I"       "-I"         3     0     0     1.93    -1     -1
+    1   "-CH3"     "-C"         3     3     0     1.81    1.88    -1     -1
+    2   ">CH2"     ">C"         3     2     0     1.81    1.88    -1     -1
+    3   ">CH-"     ">C-"        3     1     0     1.81    1.88    -1     -1
+    4   ">C<"      ">C<"        3     0     0     1.81    1.88    -1     -1
+    5   "=CH2"     "=C"         2     2     0     1.74    1.88    -1     -1
+    6   "=CH-"     "=C-"        2     1     0     1.74    1.88     0     -1
+    7   "=C<"      "=C<"        2     0     0     1.74    1.88    -1     -1
+    8   "#CH"      "#C"         1     1     0     1.66    1.88    -1     -1
+    9   "#C"       "#C"         1     0    -1     1.66    1.88    -1     -1
+   10   "#C-"      "#C-"        1     0     0     1.66    1.88    -1     -1
+   11   "=C="      "=C="        1     0     0     1.66    1.88    -1     -1
+   12   "-N?"      "-N"         3    -1     0     1.66    1.64    60     -1
+   13   "-NH3"     "-N"         3     3     1     1.66    1.64    60     -1
+   14   "-NH2"     "-N"         3     2     0     1.66    1.64    60     -1
+   15   "-NH2p"    "-N"         2     2     0     1.62    1.64    60     90
+   16   ">NH2"     ">N"         3     2     1     1.66    1.64    60      0
+   17   ">NH"      ">N"         3     1     0     1.66    1.64    60      0
+   18   ">NHp"     ">N"         2     1     0     1.62    1.64     0     -1
+   19   ">N?p"     ">N"         2    -1     0     1.62    1.64     0     -1
+   20   ">NH-"     ">N-"        3     1     1     1.66    1.64     0     -1
+   21   ">N-"      ">N-"        3     0     0     1.66    1.64     0     -1
+   22   ">Np-"     ">N-"        2     0     0     1.62    1.64    -1     -1
+   23   ">N<"      ">N<"        3     0     1     1.66    1.64    -1     -1
+   24   "=NH"      "=N"         2     1     0     1.62    1.64    60     -1
+   25   "=NH2"     "=N"         2     2     1     1.62    1.64    60     90
+   26   "=N-"      "=N-"        2     0     0     1.62    1.64     0     -1
+   27   "=NH-"     "=N-"        2     1     1     1.62    1.64     0     -1
+   28   "=N<"      "=N<"        2     1     1     1.62    1.64    -1     -1
+   29   ">>N-"     ">>N-"       2     0     1     1.62    1.64    -1     -1
+   30   "#N"       "#N"         1     0     0     1.50    1.64     0     -1
+   31   "#N-"      "#N-"        1     0     1     1.50    1.64    -1     -1
+   32   "=N="      "=N="        1     0     1     1.50    1.64    -1     -1
+   33   "H2O"      "O"          3     2     0     1.40    1.42    -1     -1
+   34   "-OH"      "-O"         3     1     0     1.40    1.42    60     -1
+   35   "-OHp"     "-O"         3     1     0     1.40    1.42    60     90
+   36   "-O"       "-O"         3     0    -1     1.40    1.42    -1     -1
+   37   "=O"       "=O"         2     0     0     1.40    1.42    60     90
+   38   "~O?"      "=O"         2    -1     0     1.40    1.42    60     90
+   39   ">O"       ">O"         3     0     0     1.40    1.42    60      0
+   40   "S"        "S"          3     0     0     1.68    1.77    -1     -1
+   41   "-SH"      "-S"         3     1     0     1.68    1.77    -1     -1
+   42   "-S"       "-S"         3     0    -1     1.68    1.77     0     -1
+   43   ">S"       ">S"         3     0     0     1.78    1.77    -1     -1
+   44   ">>S<"     ">>S<"       3     0     0     1.78    1.77    -1     -1
+   45   ">P<"      ">P<"        3     0     0     1.97    1.70    -1     -1
+   46   "-F"       "-F"         3     0     0     1.38    1.35    -1     -1
+   47   "-CL"      "-CL"        3     0     0     1.65    1.75    -1     -1
+   48   "-BR"      "-BR"        3     0     0     1.84    1.85    -1     -1
+   49   "-I"       "-I"         3     0     0     1.93    1.98    -1     -1
+   50   ">N?"      ">N"         3    -1     1     1.66    1.64    60      0
+   51   ">N?-"     ">N-"        3    -1     1     1.66    1.64     0     -1
+   52   "-NH"      "-N"         3     1    -1     1.66    1.64    60     -1
+   53   ">N"       ">N"         3     0    -1     1.66    1.64    60      0
+   54   "=S<"      "=S<"        3     0     0     1.78    1.77    -1     -1  
+   55   ">S<"      ">S<"        3     0     1     1.78    1.77    -1     -1  
 end_united_atoms
 
 
@@ -206,16 +216,16 @@ end_united_atoms
 # 10. symmetry of the beta angle with the v axis
 
 atom_geometries
-    1   "X"       -1    -1    -1    -1     0 0     0 0     -0.8 2.80     0.0   0.0     0.0   0.0
-    2   "-X"       1    -1    -1    -1     1 1     0 0     -0.8 2.80     0.0 130.0     0.0   0.0
+    1   "X"       -1    -1    -1    -1     0 0     0 0     -0.8 2.80     0.0 180.0     0.0 180.0
+    2   "-X"       1    -1    -1    -1     1 1     0 0     -0.8 2.80     0.0 130.0     0.0 180.0
     3   ">X"       2    -1    -1    -1     1 1     0 0     -0.8 2.80     0.0 120.0     0.0  90.0
-    4   ">X-"      3     0    -1    -1     1 1     0 0     -0.8 2.80     0.0 100.0     0.0   0.0
-    5   ">Xp-"     3     1    -1    -1     1 2     0 0     -0.8 2.80     0.0  50.0     0.0   0.0
-    6   "-Y-X"     1    -1     2    -1     1 1     1 2     -0.8 2.80     0.0 115.0     0.0 180.0
-    7   ">Y-X"     1    -1     3     0     1 1     1 2     -0.8 2.80     0.0 110.0     0.0 180.0
-    8   ">Yp-X"    1    -1     3     1     1 1     1 4     -0.8 2.80     0.0 115.0     0.0  90.0
+    4   ">X2"      2    -1    -1    -1     1 1     1 4     -0.8 2.80     0.0 120.0     0.0  90.0
+    5   ">X-"      3     0    -1    -1     1 1     0 0     -0.8 2.80     0.0 100.0     0.0 180.0
+    6   ">Xp-"     3     1    -1    -1     1 2     0 0     -0.8 2.80     0.0  50.0     0.0 180.0
+    7   "-Y-X"     1    -1     2    -1     1 1     1 2     -0.8 2.80     0.0 115.0     0.0 180.0
+    8   ">Y-X"     1    -1     3     0     1 1     1 2     -0.8 2.80     0.0 110.0     0.0 180.0
+    9   ">Yp-X"    1    -1     3     1     1 1     1 4     -0.8 2.80     0.0 115.0     0.0  90.0
 end_atom_geometries
-
 
 
 # PLI atom types table
@@ -238,7 +248,7 @@ atom_types
     3   ">CH2"                                   ">CH2"    ">X"    136    0    1   0   2    0   NONE
     4   ">CH2(+)"                                ">CH2"    ">X"    136    0    1   0   2    0   NONE
     5   ">CH-"                                   ">CH-"    ">X-"   136    0    1   0   1    0   NONE
-    6   ">CH-(+)"                                ">CH-"    ">X-"   136    0    1   0   2    0   NONE
+    6   ">CH-(+)"                                ">CH-"    ">X-"   136    0    1   0   1    0   NONE
     7   ">C<"                                    ">C<"     "X"     128    0    1   0   0    0   NONE
     8   "=CH2"                                   "=CH2"    "-X"    128    0    1   0   2    0   NONE
     9   "=CH-"                                   "=CH-"    ">X"    128    0    1   0   1    0   NONE
@@ -280,8 +290,8 @@ atom_types
    45   "-NH2"                                   "-NH2"    "-X"    139    0    1   0   2    1   CONE1
    46   "-NH2p"                                  "-NH2p"   ">Yp-X" 129    0    1   0   2    0   VECTORPAIR1
    47   "Amide -NH2"                             "-NH2p"   ">Yp-X" 137    0    1   0   2    0   VECTORPAIR1
-   48   ">NH2"                                   ">NH2"    ">X"      1    0    0   0   2    0   VECTORPAIR2
-   49   ">NH"                                    ">NH"     ">X"      1    0    0   0   1    1   VECTORPAIR2
+   48   ">NH2"                                   ">NH2"    ">X2"     1    0    0   0   2    0   VECTORPAIR2
+   49   ">NH"                                    ">NH"     ">X2"     1    0    0   0   1    1   VECTORPAIR2
    50   ">NHp"                                   ">NHp"    ">X"    129    0    1   1   1    0   VECTOR1
    51   "Aromatic NH"                            ">NHp"    ">X"    193    1    1   0   1    0   VECTOR1
    52   "Pyridone N?"                            ">N?p"    ">X"    195    1    1   0  -1   -1   VECTOR1
@@ -335,7 +345,7 @@ atom_types
   100   "Sulfide ion"                            "S"       "X"       2    0    0   0   0    4   POINT
   101   "-SH"                                    "-SH"     "-X"    136    0    1   0   1    3   POINT
   102   ">S"                                     ">S"      ">X"    136    0    1   0   0    2   POINT
-  103   "Quaternary S"                           ">S<"     "X"       0    0    0   0   0    0   NONE
+  103   "Sulfone/Sulfate S"                      ">>S<"    "X"       0    0    0   0   0    0   NONE
   104   "Quaternary P"                           ">P<"     "X"       0    0    0   0   0    0   NONE
   105   "Aliphatic -F"                           "-F"      "-X"    128    0    1   0   0    0   NONE
   106   "Aromatic -F"                            "-F"      "-X"    128    0    1   0   0    0   NONE
@@ -345,6 +355,18 @@ atom_types
   110   "Aromatic -BR"                           "-BR"     "-X"    128    0    1   0   0    0   NONE
   111   "Aliphatic -I"                           "-I"      "-X"    128    0    1   0   0    0   NONE
   112   "Aromatic -I"                            "-I"      "-X"    128    0    1   0   0    0   NONE
+  113   ">N?"                                    ">N?"     ">X2"     1    0    0   0  -1   -1   VECTORPAIR2
+  114   ">N?-"                                   ">N?-"    ">X-"     1    0    0   0  -1   -1   VECTOR1
+  115   "2-Amino-pyridine N?"                    ">N?p"    ">X"    195    1    1   0  -1   -1   VECTOR1
+  116   "4-Amino-pyridine N?"                    ">N?p"    ">X"    195    1    1   0  -1   -1   VECTOR1
+  117   "Sulfonamide -N?"                        "-N?"     "-X"      3    0    0   0  -1   -1   CONE1
+  118   "Sulfonamide >N?"                        ">N?"     ">X2"     3    0    0   0  -1   -1   VECTORPAIR2
+  119   "-NH"                                    "-NH"     "-X"      3    0    1   0   1    2   CONE1
+  120   ">N"                                     ">N"      ">X2"     3    0    0   0   0    2   VECTORPAIR2
+  121   "Tetrazole N?"                           ">N?p"    ">X"     67    1    1   0  -1   -1   VECTOR1
+  122   "Sulfoxide S"                            "=S<"     ">X-"     0    0    0   0   0    0   NONE
+  123   "Sulfoxonium S"                          ">S<"     "X"       0    0    0   0   0    0   NONE
+  124   "Pyrrole N?"                             ">N?p"    ">X"    195    1    1   0  -1   -1   VECTOR1
 end_atom_types
 
 
@@ -392,6 +414,21 @@ ambiguous_types
   "-N?"                   "-NH2"                  0    0.0010   0
   "-CH2-N?"               "-CH2-NH3"              0    0.9990   0
   "-CH2-N?"               "-NH2"                  0    0.0010   0
+  ">N?"                   ">NH2"                  0    0.9990   0
+  ">N?"                   ">NH"                   0    0.0010   0
+  ">N?-"                  ">NH-"                  0    0.9990   0
+  ">N?-"                  ">N-"                   0    0.0010   0
+  "2-Amino-pyridine N?"   "Aromatic =N-"          0    0.5000   0
+  "2-Amino-pyridine N?"   "Aromatic =NH-"         0    0.5000   0
+  "4-Amino-pyridine N?"   "Aromatic =N-"          0    0.2500   0
+  "4-Amino-pyridine N?"   "Aromatic =NH-"         0    0.7500   0
+  "Sulfonamide -N?"       "-NH2"                  0    0.9990   0
+  "Sulfonamide -N?"       "-NH"                   0    0.0010   0
+  "Sulfonamide >N?"       ">NH"                   0    0.9990   0
+  "Sulfonamide >N?"       ">N"                    0    0.0010   0
+  "Tetrazole N?"          "Aromatic =N-"          0    1.0000   0 # neutral species not supported
+  "Pyrrole N?"            "Aromatic NH"           0    0.9995   0
+  "Pyrrole N?"            "Aromatic =N-"          0    0.0005   0
 end_ambiguous_types
 
 
@@ -759,32 +796,28 @@ atom_type_def
 
   atom_node_def
     name "=C<"
+    aromatic 0
     atom_node_def
-      name "=N"
+      element "N"
+      aromatic 0
     end_atom_node_def
     atom_node_def
-      name "-N"
-    end_atom_node_def
-  end_atom_node_def
-
-  atom_node_def
-    name "=C<"
-    atom_node_def
-      name "-N"
-    end_atom_node_def
-    atom_node_def
-      name "-N"
+      element "N"
+      aromatic 0
     end_atom_node_def
   end_atom_node_def
 
   atom_node_def
     name ">C-"
     planar 1
+    aromatic 0
     atom_node_def
-      name "-N"
+      element "N"
+      aromatic 0
     end_atom_node_def
     atom_node_def
-      name "-N"
+      element "N"
+      aromatic 0
     end_atom_node_def
   end_atom_node_def
 
@@ -1001,24 +1034,14 @@ atom_type_def
     name "=N"
     atom_node_def
       name "=C<"
+      aromatic 0
       atom_node_def
-        name "=N"
+        element "N"
+        aromatic 0
       end_atom_node_def
       atom_node_def
-        name "-N"
-      end_atom_node_def
-    end_atom_node_def
-  end_atom_node_def
-
-  atom_node_def
-    name "=N"
-    atom_node_def
-      name "=C<"
-      atom_node_def
-        name "=N"
-      end_atom_node_def
-      atom_node_def
-        name "=N"
+        element "N"
+        aromatic 0
       end_atom_node_def
     end_atom_node_def
   end_atom_node_def
@@ -1029,39 +1052,12 @@ atom_type_def
       name "=C<"
       aromatic 0
       atom_node_def
-        name "=N"
+        element "N"
+        aromatic 0
       end_atom_node_def
       atom_node_def
-        name "-N"
-      end_atom_node_def
-    end_atom_node_def
-  end_atom_node_def
-
-  atom_node_def
-    name "-N"
-    atom_node_def
-      name "=C<"
-      aromatic 0
-      atom_node_def
-        name "-N"
-      end_atom_node_def
-      atom_node_def
-        name "-N"
-      end_atom_node_def
-    end_atom_node_def
-  end_atom_node_def
-
-  atom_node_def
-    name "-N"
-    atom_node_def
-      name ">C-"
-      planar 1
-      aromatic 0
-      atom_node_def
-        name "-N"
-      end_atom_node_def
-      atom_node_def
-        name "-N"
+        element "N"
+        aromatic 0
       end_atom_node_def
     end_atom_node_def
   end_atom_node_def
@@ -1125,6 +1121,51 @@ end_atom_type_def
 
 
 
+# Sulfonamide -N?
+
+#atom_type_def
+#
+#  name "Sulfonamide -N?"
+#
+#  atom_node_def
+#    name "-N"
+#    atom_node_def
+#      element "S"
+#      atom_node_def
+#        name "=O"
+#      end_atom_node_def
+#      atom_node_def
+#        name "=O"
+#      end_atom_node_def
+#    end_atom_node_def
+#  end_atom_node_def
+#
+#end_atom_type_def
+
+
+
+# Sulfonamide >N?
+
+#atom_type_def
+#
+#  name "Sulfonamide >N?"
+#
+#  atom_node_def
+#    name ">N"
+#    atom_node_def
+#      element "S"
+#      atom_node_def
+#        name "=O"
+#      end_atom_node_def
+#      atom_node_def
+#        name "=O"
+#      end_atom_node_def
+#    end_atom_node_def
+#  end_atom_node_def
+#
+#end_atom_type_def
+
+
 
 # Planar NH2
 
@@ -1158,11 +1199,11 @@ end_atom_type_def
 
 
 
-# >NH2(+)
+# >N?
 
 atom_type_def
 
-  name ">NH2"
+  name ">N?"
 
   atom_node_def
     name ">N"
@@ -1211,26 +1252,34 @@ atom_type_def
 
   atom_node_def
     name ">N"
+    aromatic 0
     atom_node_def
       name "=C<"
+      aromatic 0
       atom_node_def
-        name "-N"
+        element "N"
+        aromatic 0
       end_atom_node_def
       atom_node_def
-        name "=N"
+        element "N"
+        aromatic 0
       end_atom_node_def
     end_atom_node_def
   end_atom_node_def
 
   atom_node_def
     name "=N-"
+    aromatic 0
     atom_node_def
       name "=C<"
+      aromatic 0
       atom_node_def
-        name "-N"
+        element "N"
+        aromatic 0
       end_atom_node_def
       atom_node_def
-        name "-N"
+        element "N"
+        aromatic 0
       end_atom_node_def
     end_atom_node_def
   end_atom_node_def
@@ -1286,11 +1335,26 @@ end_atom_type_def
 
 
 
-# >NH-(+)
+# Planar >N-
 
 atom_type_def
 
-  name ">NH-"
+  name ">Np-"
+
+  atom_node_def
+    name ">N-"
+    planar 1
+  end_atom_node_def
+
+end_atom_type_def
+
+
+
+# >N?-
+
+atom_type_def
+
+  name ">N?-"
 
   atom_node_def
     name ">N-"
@@ -1327,21 +1391,6 @@ atom_type_def
         name "=O"
       end_atom_node_def
     end_atom_node_def
-  end_atom_node_def
-
-end_atom_type_def
-
-
-
-# Planar >N-
-
-atom_type_def
-
-  name ">Np-"
-
-  atom_node_def
-    name ">N-"
-    planar 1
   end_atom_node_def
 
 end_atom_type_def
@@ -1397,6 +1446,59 @@ atom_type_def
 
   atom_node_def
     name "=N"
+  end_atom_node_def
+
+end_atom_type_def
+
+
+
+# 2-Amino-pyridine N?
+
+atom_type_def
+
+  name "2-Amino-pyridine N?"
+
+  atom_node_def 
+    name "=N-"
+    aromatic 1
+    atom_node_def
+      name "=C<"
+      aromatic 1
+      atom_node_def
+        name "-N"
+      end_atom_node_def
+    end_atom_node_def
+  end_atom_node_def
+
+end_atom_type_def
+
+
+
+# 4-Amino-pyridine N?
+# not tested!
+
+atom_type_def
+
+  name "4-Amino-pyridine N?"
+
+  atom_node_def 
+    name "=N-"
+    aromatic 1
+    atom_node_def
+      element "C"
+      aromatic 1
+      atom_node_def
+        element "C"
+        aromatic 1
+        atom_node_def
+          name "=C<"
+          aromatic 1
+          atom_node_def
+            name "-N"
+          end_atom_node_def
+        end_atom_node_def
+      end_atom_node_def
+    end_atom_node_def
   end_atom_node_def
 
 end_atom_type_def
@@ -1558,6 +1660,16 @@ atom_type_def
     end_atom_node_def
   end_atom_node_def
 
+  atom_node_def
+    name "=O"
+    atom_node_def
+      name "=C<"
+      atom_node_def
+        name "=O"
+      end_atom_node_def
+    end_atom_node_def
+  end_atom_node_def
+
 end_atom_type_def
 
 
@@ -1674,6 +1786,13 @@ atom_type_def
   end_atom_node_def
 
   atom_node_def
+    name "=O"
+    atom_node_def
+      name "=N<"
+    end_atom_node_def
+  end_atom_node_def
+
+  atom_node_def
     name "-O"
     atom_node_def
       name "=N<"
@@ -1681,9 +1800,9 @@ atom_type_def
   end_atom_node_def
 
   atom_node_def
-    name "=O"
+    name "-O"
     atom_node_def
-      name "=N<"
+      name ">>N-"
     end_atom_node_def
   end_atom_node_def
 
@@ -1968,14 +2087,44 @@ end_atom_type_def
 
 
 
-# Quaternary S
+# Sulfoxide S
 
 atom_type_def
 
-  name "Quaternary S"
+  name "Sulfoxide S"
+
+  atom_node_def
+    name "=S<"
+  end_atom_node_def
+
+end_atom_type_def
+
+
+
+
+# Sulfoxonium S
+
+atom_type_def
+
+  name "Sulfoxonium S"
 
   atom_node_def
     name ">S<"
+  end_atom_node_def
+
+end_atom_type_def
+
+
+
+
+# Sulfone/Sulfate S
+
+atom_type_def
+
+  name "Sulfone/Sulfate S"
+
+  atom_node_def
+    name ">>S<"
   end_atom_node_def
 
 end_atom_type_def

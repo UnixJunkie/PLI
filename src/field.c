@@ -1,4 +1,4 @@
-// Copyright 2015 Astex Therapautics Ltd.
+// Copyright 2015 Astex Therapeutics Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -34,17 +34,14 @@ static struct FieldSettings {
 
 
 static void add_atom_type_probe(ATOM_TYPE*,SETTINGS*);
-static void read_field_probes(SETTINGS*);
-static void read_field_probe(PLI_FILE*,char*,SETTINGS*);
 static void alloc_field_probes(void);
 static void init_field_probe(FIELD_PROBE*);
-static ATOM* read_probe_atom(char*,FIELD_PROBE*,ATOM_TYPING_SCHEME*);
 static void realloc_probe_atoms(FIELD_PROBE*);
-static void init_field_system(SYSTEM*,FIELD_PROBE*);
-static void finish_field_system(SYSTEM*,FIELD_PROBE*);
-static void move_probe_to_new_position(FIELD_PROBE*,double*);
 static double calc_field_score(FIELD_PROBE*,MAP*,SYSTEM*,PLI_SFUNC*);
 static GRID* field_settings2grid(SYSTEM*);
+static FIELD_PROBE* alloc_field_probe(void);
+static double calc_field_score(FIELD_PROBE*,MAP*,SYSTEM*,PLI_SFUNC*);
+static MAP* new_field(char*,SYSTEM*);
 
 
 
@@ -65,7 +62,7 @@ void run_field(SETTINGS *settings) {
     error_fn("unknown probe '%s'",field_settings->probe_name);
   }
 
-  field = calculate_field(system,probe,settings->sfunc);
+  field = calculate_field(system,probe,NULL, settings->sfunc);
 
   write_insight_map(field_settings->grid_file,field,0);
   //write_insight_map("mask.grd",field,1);
@@ -81,28 +78,45 @@ void run_field(SETTINGS *settings) {
 
 
 
-MAP* calculate_field(SYSTEM *system,FIELD_PROBE *probe,PLI_SFUNC *sfunc) {
+MAP* calculate_field(SYSTEM *system,FIELD_PROBE *probe, MAP *field, PLI_SFUNC *sfunc) {
 
-  int ix,iy,iz,nx,ny,nz,index;
-  unsigned char *mask;
-  double pos[3],***matrix,score,bad_score;
+  int ix,iy,iz,nx,ny,nz,index,score_inter,score_intra;
+  double pos[3],***matrix,score,bad_score,radius;
   GRID *grid;
-  MAP *field;
   ATOMLIST *selection;
+  BYTE *volume_mask,*clash_mask;
+
+  // only calculate inter-molecular terms:
+
+  score_inter = (params_get_parameter("score_inter"))->value.i;
+  score_intra = (params_get_parameter("score_intra"))->value.i;
+
+  (params_get_parameter("score_inter"))->value.i = 1;
+  (params_get_parameter("score_intra"))->value.i = 0;
 
   reset_system(system,0);
 
-  field = init_field(probe->name,system);
+  if (field == NULL) {
+
+    field = new_field(probe->name,system);
+  }
+
+  grid = field->grid;
+
+  radius = 2.0*(probe->atom->vdw_radius_H2O) - (probe->atom->vdw_radius);
+
+  volume_mask = mask_system_volume(system,NULL,grid,PROBE_MASK,radius);
+  clash_mask = mask_system_atoms(system,NULL,grid,CONTACT_MASK,0.0);
 
   selection = system->selection;
 
   init_field_system(system,probe);
 
-  //calc_system_ref_scores(system);
+  prep_score_system(system,sfunc);
 
-  grid = field->grid;
+  // TODO: To account for edge cases
+  params_get_parameter("grid_padding")->value.d += params_get_parameter("grid_spacing")->value.d;
 
-  mask = field->mask;
   matrix = (double***) field->matrix;
 
   nx = grid->npoints[0];
@@ -117,13 +131,17 @@ MAP* calculate_field(SYSTEM *system,FIELD_PROBE *probe,PLI_SFUNC *sfunc) {
 
     for (iy=0;iy<ny;iy++) {
 
-      pos[1] = grid->flimit[1][0] + ((double) iy)*(grid->spacing);
+     pos[1] = grid->flimit[1][0] + ((double) iy)*(grid->spacing);
 
       for (iz=0;iz<nz;iz++) {
 
 	index = ny*nz*ix + nz*iy + iz;
 
-	if (!(is_mask_bit_set(mask,index))) {
+	if (is_mask_bit_set(clash_mask,index)) {
+
+	  matrix[ix][iy][iz] = bad_score;
+
+	} else if (is_mask_bit_set(volume_mask,index)) {
 
 	  pos[2] = grid->flimit[2][0] + ((double) iz)*(grid->spacing);
 
@@ -132,20 +150,24 @@ MAP* calculate_field(SYSTEM *system,FIELD_PROBE *probe,PLI_SFUNC *sfunc) {
 	  score = calc_field_score(probe,field,system,sfunc);
 
 	  matrix[ix][iy][iz] = score;
-
-	} else {
-
-	  matrix[ix][iy][iz] = bad_score;
 	}
       }
     }
   }
+
+  free(volume_mask);
+  free(clash_mask);
 
   finish_field_system(system,probe);
 
   system->selection = selection;
 
   reset_system(system,0);
+
+  (params_get_parameter("score_inter"))->value.i = score_inter;
+  (params_get_parameter("score_intra"))->value.i = score_intra;
+
+  unprep_score_system(system,ANY_MOLECULE,sfunc);
 
   return(field);
 }
@@ -244,6 +266,8 @@ static void add_atom_type_probe(ATOM_TYPE *type,SETTINGS *settings) {
 
   realloc_probe_atoms(probe);
 
+  probe->type = ATOM_PROBE;
+
   probe->atom = probe->molecule->atom;
 
   atom = probe->atom;
@@ -254,7 +278,13 @@ static void add_atom_type_probe(ATOM_TYPE *type,SETTINGS *settings) {
 
   atom->type = type;
 
+  //
+  //atom->node = type->united_atom->atom_node;
+
   atom->element = (atom->type->id == -1) ? atom->type->element : atom->type->united_atom->atom_node->element;
+
+  //
+  atom->hbond_geometry = type->hbond_geometry;
 
   atom->molecule = molecule;
 
@@ -272,7 +302,69 @@ static void add_atom_type_probe(ATOM_TYPE *type,SETTINGS *settings) {
 
   set_molecule_vdw_radii(molecule,settings->water_vdw_radius);
 
+  molecule->active_atoms = molecule_active_atoms(molecule);
+
   field_settings->n_probes++;
+}
+
+
+// TODO: use this for adding atom type probe. Or actually just create one probe, dont add all
+FIELD_PROBE* create_atom_type_probe(ATOM_TYPE *type, SETTINGS *settings, FIELD_PROBE *probe_in) {
+  // TODO: use create_atom_type_molecule function
+  ATOM *atom;
+  MOLECULE *molecule;
+  FIELD_PROBE *probe;
+
+  if (probe_in == NULL) {
+    probe = alloc_field_probe();
+    init_field_probe(probe);
+  } else {
+    probe = probe_in;
+  }
+
+  probe->type = ATOM_PROBE;
+
+  strcpy(probe->name,type->name);
+
+  realloc_probe_atoms(probe);
+
+  probe->atom = probe->molecule->atom;
+
+  atom = probe->atom;
+
+  molecule = probe->molecule;
+
+  null_vector(atom->position);
+
+  atom->type = type;
+
+  //printf("type: %s\n", type->name);
+
+  atom->node = type->united_atom->atom_node;
+
+  atom->element = (atom->type->id == -1) ? atom->type->element : atom->type->united_atom->atom_node->element;
+
+  atom->hbond_geometry = type->hbond_geometry;
+
+  atom->molecule = molecule;
+
+  atom->flags |= SINGLE_ATOM_PROBE;
+
+  molecule->natoms++;
+
+  strcpy(molecule->name,probe->name);
+
+  molecule->selection = molecule2atoms(molecule);
+
+  molecule->active_atoms = molecule_active_atoms(molecule);
+
+  molecule->flags |= LIGAND_MOLECULE;
+
+  molecule->molsystem = molecule2system(molecule,settings);
+
+  set_molecule_vdw_radii(molecule,settings->water_vdw_radius);
+
+  return(probe);
 }
 
 
@@ -337,34 +429,24 @@ static void realloc_probe_atoms(FIELD_PROBE *probe) {
 
 
 
-MAP* init_field(char *probe_name,SYSTEM *system) {
+static MAP* new_field(char *probe_name,SYSTEM *system) {
 
   char field_name[MAX_LINE_LEN];
   MAP *field;
+  GRID *grid;
 
   (probe_name != NULL) ? sprintf(field_name,"PLI field for %s",probe_name) : sprintf(field_name,"PLI field");
 
-  field = new_map(field_name);
+  grid = system_grid(system,(params_get_parameter("grid_spacing"))->value.d,(params_get_parameter("grid_padding"))->value.d);
 
-  if (field == NULL) {
-
-    error_fn("init_field: out of memory allocating field");
-  }
-
-  field->grid = field_settings2grid(system);
-
-  field->type = DOUBLE_MAP;
-
-  alloc_map_matrix(field);
-
-  mask_map_molecule(field,system->protein,CONTACT_MASK);
+  field = new_map(field_name,"double",grid);
 
   return(field);
 }
 
 
 
-static void init_field_system(SYSTEM *system,FIELD_PROBE *probe) {
+void init_field_system(SYSTEM *system,FIELD_PROBE *probe) {
 
   ATOM *atom;
   MOLECULE *molecule;
@@ -391,7 +473,7 @@ static void init_field_system(SYSTEM *system,FIELD_PROBE *probe) {
 
 
 
-static void finish_field_system(SYSTEM *system,FIELD_PROBE *probe) {
+void finish_field_system(SYSTEM *system,FIELD_PROBE *probe) {
 
   if (field_settings->optimise_u_axis) {
 
@@ -403,7 +485,7 @@ static void finish_field_system(SYSTEM *system,FIELD_PROBE *probe) {
 
 
 
-static void move_probe_to_new_position(FIELD_PROBE* probe,double *position) {
+void move_probe_to_new_position(FIELD_PROBE* probe,double *position) {
 
   if (probe->type == ATOM_PROBE) {
 
@@ -417,7 +499,7 @@ static void move_probe_to_new_position(FIELD_PROBE* probe,double *position) {
 
 
 
-static double calc_field_score(FIELD_PROBE *probe,MAP *field,SYSTEM *system,PLI_SFUNC *sfunc) {
+double calc_field_score(FIELD_PROBE *probe,MAP *field,SYSTEM *system,PLI_SFUNC *sfunc) {
 
   int i;
   double score,**u_axis;
@@ -439,8 +521,8 @@ static double calc_field_score(FIELD_PROBE *probe,MAP *field,SYSTEM *system,PLI_
 
 	atom->status |= ATOM_ROTATED;
 
-	atom->cstatus ^= ATOM_GEOMETRIES_CALCULATED;
-	atom->cstatus ^= ATOM_SCORES_CALCULATED;
+	atom->cstatus &= ~ATOM_GEOMETRIES_CALCULATED;
+	atom->cstatus &= ~ATOM_SCORES_CALCULATED;
 
 	score_system(system,sfunc);
 
@@ -480,3 +562,14 @@ static GRID* field_settings2grid(SYSTEM *system) {
 
   return(grid);
 }
+
+static FIELD_PROBE* alloc_field_probe(void) {
+  FIELD_PROBE *probe;
+
+  probe = (FIELD_PROBE*) malloc(sizeof(FIELD_PROBE));
+  if (probe == NULL) {
+    error_fn("alloc_field_probe: out of memory allocating probe");
+  }
+  return(probe);
+}
+

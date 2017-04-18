@@ -1,4 +1,4 @@
-// Copyright 2015 Astex Therapautics Ltd.
+// Copyright 2015 Astex Therapeutics Ltd.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -26,30 +26,30 @@
 
 
 static RESIDUE AMINO_ACIDS[] = {
-  { "ALA",'A',1 },
-  { "ARG",'R',1 },
-  { "ASN",'N',1 },
-  { "ASP",'D',1 },
-  { "CYS",'C',1 },
-  { "GLN",'Q',1 },
-  { "GLU",'E',1 },
-  { "GLY",'G',1 },
-  { "HIS",'H',1 },
-  { "ILE",'I',1 },
-  { "LEU",'L',1 },
-  { "LYS",'K',1 },
-  { "MET",'M',1 },
-  { "PHE",'F',1 },
-  { "PRO",'P',1 },
-  { "SER",'S',1 },
-  { "THR",'T',1 },
-  { "TRP",'W',1 },
-  { "TYR",'Y',1 },
-  { "VAL",'V',1 },
-  { "TPO",'T',1 },
-  { "SEP",'S',1 },
-  { "PTR",'Y',1 },
-  { "LAST",' ',0 }
+  { "ALA",0,' ',' ','A',1 },
+  { "ARG",0,' ',' ','R',1 },
+  { "ASN",0,' ',' ','N',1 },
+  { "ASP",0,' ',' ','D',1 },
+  { "CYS",0,' ',' ','C',1 },
+  { "GLN",0,' ',' ','Q',1 },
+  { "GLU",0,' ',' ','E',1 },
+  { "GLY",0,' ',' ','G',1 },
+  { "HIS",0,' ',' ','H',1 },
+  { "ILE",0,' ',' ','I',1 },
+  { "LEU",0,' ',' ','L',1 },
+  { "LYS",0,' ',' ','K',1 },
+  { "MET",0,' ',' ','M',1 },
+  { "PHE",0,' ',' ','F',1 },
+  { "PRO",0,' ',' ','P',1 },
+  { "SER",0,' ',' ','S',1 },
+  { "THR",0,' ',' ','T',1 },
+  { "TRP",0,' ',' ','W',1 },
+  { "TYR",0,' ',' ','Y',1 },
+  { "VAL",0,' ',' ','V',1 },
+  { "TPO",0,' ',' ','T',1 },
+  { "SEP",0,' ',' ','S',1 },
+  { "PTR",0,' ',' ','Y',1 },
+  { "LAST",0,' ',' ',' ',0 }
 };
 
 
